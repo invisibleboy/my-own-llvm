@@ -37,6 +37,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include <algorithm>
 #include <cmath>
+#include "llvm/CodeGen/AccessFrequency.h"
 using namespace llvm;
 
 STATISTIC(numJoins    , "Number of interval joins performed");
@@ -1696,7 +1697,9 @@ bool SimpleRegisterCoalescing::runOnMachineFunction(MachineFunction &fn) {
   DEBUG(dbgs() << "********** SIMPLE REGISTER COALESCING **********\n"
                << "********** Function: "
                << ((Value*)mf_->getFunction())->getName() << '\n');
-
+	
+	// revised by qali
+  /*
   for (TargetRegisterInfo::regclass_iterator I = tri_->regclass_begin(),
          E = tri_->regclass_end(); I != E; ++I)
     allocatableRCRegs_.insert(std::make_pair(*I,
@@ -1828,7 +1831,16 @@ bool SimpleRegisterCoalescing::runOnMachineFunction(MachineFunction &fn) {
   }
 
   DEBUG(dump());
+   
   return true;
+   * */
+   
+	DEBUG( dbgs() << "*************Access Frequency Analysis ***********\n" );
+	AccessFrequency *pAccFreq = new AccessFrequency();
+	pAccFreq->runOnMachineFunction(fn);
+	
+  
+   return true;
 }
 
 /// print - Implement the dump method.
