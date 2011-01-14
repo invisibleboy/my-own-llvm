@@ -46,8 +46,9 @@ bool AccessFrequency::runOnMachineFunction(MachineFunction &mf)
         for (MachineBasicBlock::const_iterator BBI = FI->begin(), BBE = FI->end();
             BBI != BBE; ++BBI)
         {
+			BBI->print(dbgs(), NULL );
             //MachineInstr *MI = BBI;
-            for (unsigned i = 1, e = BBI->getNumOperands(); i != e; i += 2)
+            for (unsigned i = 0, e = BBI->getNumOperands(); i != e; ++ i)
             {
                 const MachineOperand &MO = BBI->getOperand(i);
 // TODO (qali#1#): To hack other kinds of MachineOperands
