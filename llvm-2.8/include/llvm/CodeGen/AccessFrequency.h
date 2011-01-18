@@ -11,13 +11,18 @@
 namespace llvm{
 class AccessFrequency : public MachineFunctionPass
 {
-    public:
+	static AccessFrequency* ms_instance;
+	
+public:
+	static AccessFrequency *Instance();
+	static void Release();
+	
+public:
+		//typedef MachineMemOperand **mmo_iterator;
         static char ID; // Pass identification, replacement for typeid
         AccessFrequency() : MachineFunctionPass(ID) {} //ctor;
         virtual ~AccessFrequency();
-        unsigned int GetCounter() { return m_Counter; }
-        void SetCounter(unsigned int val) { m_Counter = val; }
-        unsigned int GetRead(int nReg)
+/*        unsigned int GetRead(int nReg)
         {
             DenseMap<int , unsigned>::iterator m_i = m_ReadMap.find(nReg);
             if( m_i == m_ReadMap.end())
@@ -34,7 +39,7 @@ class AccessFrequency : public MachineFunctionPass
             else
                 return m_WriteMap[nReg];
         }
-
+*/
 public:
         void getAnalysisUsage(AnalysisUsage &AU) const;
         virtual bool runOnMachineFunction(MachineFunction &MF);
@@ -45,10 +50,11 @@ public:
 
 
     protected:
-    private:
-        unsigned int m_Counter;
-        DenseMap<int, unsigned> m_ReadMap;
-        DenseMap<int, unsigned> m_WriteMap;
+    private:    
+        DenseMap<int, unsigned> m_RegReadMap;
+        DenseMap<int, unsigned> m_RegWriteMap;
+		StringMap<unsigned> m_StackReadMap;
+		StringMap<unsigned> m_StackWriteMap;
 
     private:   // Intermediate data structures
         MachineFunction *MF;

@@ -58,7 +58,8 @@ namespace llvm {
     VNInfo::Allocator VNInfoAllocator;
 
     typedef DenseMap<unsigned, LiveInterval*> Reg2IntervalMap;
-    Reg2IntervalMap r2iMap_;
+public:
+	Reg2IntervalMap r2iMap_;
 
     /// allocatableRegs_ - A bit vector of allocatable registers.
     BitVector allocatableRegs_;
