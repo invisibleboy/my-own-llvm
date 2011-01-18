@@ -9,6 +9,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/CodeGen/AccessFrequency.h"
 #include "llvm/Function.h"
+#include "llvm/CodeGen/MachineMemOperand.h"
 
 
 using namespace llvm;
@@ -19,9 +20,27 @@ INITIALIZE_PASS(AccessFrequency, "accfreq",
 
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "accfreq"
+
+AccessFrequency *AccessFrequency::ms_instance = 0;
 AccessFrequency::~AccessFrequency()
 {
     //dtor
+}
+
+AccessFrequency * AccessFrequency::Instance()
+{
+	if(ms_instance == 0){
+		ms_instance = new AccessFrequency();
+	}
+	return ms_instance;
+}
+
+void AccessFrequency::Release()
+{
+	if(ms_instance){
+		delete ms_instance;
+	}
+	ms_instance = 0;
 }
 
 void AccessFrequency::getAnalysisUsage(AnalysisUsage &AU) const
@@ -52,21 +71,52 @@ bool AccessFrequency::runOnMachineFunction(MachineFunction &mf)
             {
                 const MachineOperand &MO = BBI->getOperand(i);
 // TODO (qali#1#): To hack other kinds of MachineOperands
-                if( !MO.isReg() || MO.getReg() == 0 )
-                    continue;
-                unsigned MOReg = MO.getReg();
-                if( MO.isUse() )
-                {
-                    m_ReadMap[MOReg] ++;
-                }
-                else if( MO.isDef())
-                {
-                    m_WriteMap[MOReg] ++;
-                }
-                else
-                    assert("Unrecoganized operation in AccessFrequency::runOnMachineFunction!\n");
-
+				switch (MO.getType() )
+				{
+				case MachineOperand::MO_Register:
+					if( MO.getReg() != 0 
+						&& TargetRegisterInfo::isVirtualRegister(MO.getReg()) )
+					{
+						unsigned MOReg = MO.getReg();
+						if( MO.isUse() )
+						{
+							m_RegReadMap[MOReg] ++;
+						}
+						else if( MO.isDef())
+						{
+							m_RegWriteMap[MOReg] ++;
+						}
+						else
+							assert("Unrecoganized operation in AccessFrequency::runOnMachineFunction!\n");
+					}
+					break;
+				default:
+					break;
+				}
             }
+			
+			// Analyze the memoperations
+			if(!BBI->memoperands_empty() )
+			{
+				for( MachineInstr::mmo_iterator i = BBI->memoperands_begin(), e = BBI->memoperands_end();
+					i != e; ++ i) {
+						if( (*i)->isLoad() )
+						{
+							const char *tmp = (**i).getValue()->getName().data();
+							m_StackReadMap[tmp] ++;
+						}
+						else if( (*i)->isStore())
+						{
+							const char *tmp = (**i).getValue()->getName().data();
+							m_StackWriteMap[tmp] ++;
+						}
+						else
+						{
+							assert(false);
+							 dbgs() << __FILE__ << __LINE__;
+						}
+					}
+			}
         }
     }
 
@@ -82,14 +132,30 @@ void AccessFrequency::dump()
 void AccessFrequency::print(raw_ostream &OS) const
 {
     OS << "Read Access Frequency for " << MF->getFunction()->getName() << ":\n";
-    for( DenseMap<int, unsigned>::const_iterator DMI = m_ReadMap.begin(), DME = m_ReadMap.end();
+	for( StringMap<unsigned>::const_iterator DMI = m_StackReadMap.begin(), DME = m_StackReadMap.end();
+    DMI != DME; ++DMI)
+    {
+        OS << MF->getFunction()->getName();
+		OS << "__";
+		OS << DMI->getKey();
+		OS << ",\t" << DMI->getValue() << "\n";
+    }
+    for( DenseMap<int, unsigned>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
     DMI != DME; ++DMI)
     {
         OS << "%reg" << DMI->first << ",\t" << DMI->second << "\n";
     }
 
     OS << "\nWrite Access Frequency for " << MF->getFunction()->getName() << ":\n";
-    for( DenseMap<int, unsigned>::const_iterator DMI = m_WriteMap.begin(), DME = m_ReadMap.end();
+	for( StringMap<unsigned>::const_iterator DMI = m_StackWriteMap.begin(), DME = m_StackWriteMap.end();
+    DMI != DME; ++DMI)
+    {
+        OS << MF->getFunction()->getName();
+		OS << "__";
+		OS << DMI->getKey();
+		OS << ",\t" << DMI->getValue() << "\n";
+    }
+    for( DenseMap<int, unsigned>::const_iterator DMI = m_RegWriteMap.begin(), DME = m_RegWriteMap.end();
     DMI != DME; ++DMI)
     {
         OS << "%reg" << DMI->first << ",\t" << DMI->second << "\n";

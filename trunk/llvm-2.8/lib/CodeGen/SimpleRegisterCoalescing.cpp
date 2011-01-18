@@ -38,6 +38,7 @@
 #include <algorithm>
 #include <cmath>
 #include "llvm/CodeGen/AccessFrequency.h"
+#include "llvm/CodeGen/interferegraph.h"
 using namespace llvm;
 
 STATISTIC(numJoins    , "Number of interval joins performed");
@@ -1836,8 +1837,13 @@ bool SimpleRegisterCoalescing::runOnMachineFunction(MachineFunction &fn) {
    * */
    
 	DEBUG( dbgs() << "*************Access Frequency Analysis ***********\n" );
-	AccessFrequency *pAccFreq = new AccessFrequency();
+	AccessFrequency *pAccFreq = AccessFrequency::Instance();
 	pAccFreq->runOnMachineFunction(fn);
+	
+	DEBUG( dbgs() << "*************Interfere Graph *********************\n");
+	InterfereGraph *pIG = InterfereGraph::Instance();
+	pIG->Initialize(li_, tri_);
+	pIG->runOnMachineFunction(fn);
 	
   
    return true;
