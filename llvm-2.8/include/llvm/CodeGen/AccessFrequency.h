@@ -7,8 +7,12 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineOperand.h"
+#include "llvm/Analysis/SPM.h"
+#include "llvm/CodeGen/MachineLoopInfo.h"
 
 namespace llvm{
+	
+	class StaticProfilePass;
 class AccessFrequency : public MachineFunctionPass
 {
 	static AccessFrequency* ms_instance;
@@ -21,7 +25,7 @@ public:
 		//typedef MachineMemOperand **mmo_iterator;
         static char ID; // Pass identification, replacement for typeid
         AccessFrequency() : MachineFunctionPass(ID) {} //ctor;
-        virtual ~AccessFrequency();
+        virtual ~AccessFrequency() {};
 /*        unsigned int GetRead(int nReg)
         {
             DenseMap<int , unsigned>::iterator m_i = m_ReadMap.find(nReg);
@@ -44,17 +48,18 @@ public:
         void getAnalysisUsage(AnalysisUsage &AU) const;
         virtual bool runOnMachineFunction(MachineFunction &MF);
         void print(raw_ostream &OS) const;
-		void print(raw_ostream &OS, const Module *) const {};
+		void print(raw_ostream &OS, const Module *) const {};		
         void dump();
-
-
+		void reset();
+		void initialize( const MachineLoopInfo * li, const StaticProfilePass *sp ) { MLI = li;  SP = sp;}
 
     protected:
-    private:    
-        DenseMap<int, unsigned> m_RegReadMap;
-        DenseMap<int, unsigned> m_RegWriteMap;
-		StringMap<unsigned> m_StackReadMap;
-		StringMap<unsigned> m_StackWriteMap;
+    public:    
+		/*DenseMap<int, CData *> m_hRegs;*/
+        DenseMap<int, double> m_RegReadMap;
+        DenseMap<int, double> m_RegWriteMap;
+		StringMap<double> m_StackReadMap;
+		StringMap<double> m_StackWriteMap;
 
     private:   // Intermediate data structures
         MachineFunction *MF;
@@ -62,6 +67,9 @@ public:
         MachineRegisterInfo* MRI;
 
         const TargetRegisterInfo *TRI;
+		
+		const MachineLoopInfo *MLI;
+		const StaticProfilePass *SP;
 };
 }  // End llvm namespace
 

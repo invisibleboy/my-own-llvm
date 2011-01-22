@@ -68,6 +68,7 @@ namespace llvm {
     std::map<const FType*, EdgeWeights> EdgeInformation;
 
     // BlockInformation - Count the number of times a block is executed.
+	public:
     std::map<const FType*, BlockCounts> BlockInformation;
 
     // FunctionInformation - Count the number of times a function is executed.
