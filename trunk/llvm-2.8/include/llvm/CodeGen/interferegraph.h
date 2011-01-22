@@ -9,6 +9,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/LiveIntervalAnalysis.h"
+#include "llvm/Analysis/SPM.h"
 
 using namespace std;
 
@@ -22,10 +23,10 @@ class InterfereGraph : public llvm::MachineFunctionPass {
 public:
         void getAnalysisUsage(AnalysisUsage &AU) const {};
         virtual bool runOnMachineFunction(MachineFunction &MF);
-		inline void Initialize(LiveIntervals *lis, const TargetRegisterInfo *tri) { li_ = lis; tri_ = tri;}
-        void print(raw_ostream &OS) const;
+		inline void initialize(LiveIntervals *lis, const TargetRegisterInfo *tri) { li_ = lis; tri_ = tri;}
+        void print(raw_ostream &OS) const ;
 		void print(raw_ostream &OS, const Module *) const {};
-        void dump();
+        void dump();		
 		
 public:
 	static char ID;
@@ -34,7 +35,6 @@ public:
 	virtual ~InterfereGraph() {};
 	static InterfereGraph* Instance();
 	static void Release();
-
 private:
 	LiveIntervals *li_;
 	const TargetRegisterInfo *tri_;
