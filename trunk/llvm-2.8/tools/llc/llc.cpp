@@ -35,8 +35,10 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetRegistry.h"
 #include "llvm/Target/TargetSelect.h"
+#include "llvm/CodeGen/SPM.h"
 #include <memory>
 using namespace llvm;
+using namespace SPM;
 
 // General options for llc.  Other pass-specific options are specified
 // within the corresponding llc passes, and target-specific options
@@ -323,6 +325,20 @@ int main(int argc, char **argv) {
     PM.run(mod);
   }
 
+  // Dump the spm allocation info
+  std::string fileName = mod.getModuleIdentifier() + ".spm";
+  std::ofstream fout;
+  fout.setf(std::ios_base::scientific);
+  fout.open(fileName.c_str(), std::ios_base::out);
+  fout << "##############################################################################################\n";
+  fout << "-------------------------------------First Come First Service---------------------------------\n";
+  fout << "##############################################################################################\n";
+  dumpMemory(g_FcfsMemory, fout);
+  fout << "##############################################################################################\n";
+  fout << "-------------------------------------Partition While Allocate---------------------------------\n";
+  fout << "##############################################################################################\n";
+  dumpMemory(g_PwaMemory, fout);
+  fout.close();
   // Declare success.
   Out->keep();
 
