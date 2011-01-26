@@ -41,6 +41,15 @@
 
 using namespace llvm;
 
+//extern const std::map<const Function *, std::map<const BasicBlock *, double> > &g_hF2B2Acc;
+//extern int GetAccess(const std::map<const Function *, std::map<const BasicBlock *, double> > &left );
+const std::map<const Function *, std::map<const BasicBlock *, double> > *g_hF2B2Acc;
+int GetAccess(const std::map<const Function *, std::map<const BasicBlock *, double> > &left)
+{
+	g_hF2B2Acc = &left;		
+	return 0;
+}
+
 char StaticProfilePass::ID = 0;
 double StaticProfilePass::epsilon = 0.000001;
 
@@ -108,6 +117,7 @@ bool StaticProfilePass::runOnModule(Module &M) {
   // frequencies to achieve global block and edge frequency.
   CalculateGlobalInfo(M);
 
+	GetAccess(BlockInformation);
   return false;
 }
 
