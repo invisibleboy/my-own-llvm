@@ -39,7 +39,11 @@
 #include <cmath>
 #include "llvm/CodeGen/AccessFrequency.h"
 #include "llvm/CodeGen/interferegraph.h"
+#include "llvm/Analysis/StaticProfilePass.h"
+#include "llvm/CodeGen/SPM.h"
+
 using namespace llvm;
+using namespace SPM;
 
 STATISTIC(numJoins    , "Number of interval joins performed");
 STATISTIC(numCrossRCs , "Number of cross class joins performed");
@@ -81,6 +85,7 @@ void SimpleRegisterCoalescing::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<MachineLoopInfo>();
   AU.addPreserved<MachineLoopInfo>();
   AU.addPreservedID(MachineDominatorsID);
+  //AU.addRequired<StaticProfilePass>();
   if (StrongPHIElim)
     AU.addPreservedID(StrongPHIEliminationID);
   else
@@ -1694,6 +1699,7 @@ bool SimpleRegisterCoalescing::runOnMachineFunction(MachineFunction &fn) {
   li_ = &getAnalysis<LiveIntervals>();
   AA = &getAnalysis<AliasAnalysis>();
   loopInfo = &getAnalysis<MachineLoopInfo>();
+  //sp = &getAnalysis<StaticProfilePass>();
 
   DEBUG(dbgs() << "********** SIMPLE REGISTER COALESCING **********\n"
                << "********** Function: "
@@ -1838,13 +1844,19 @@ bool SimpleRegisterCoalescing::runOnMachineFunction(MachineFunction &fn) {
    
 	DEBUG( dbgs() << "*************Access Frequency Analysis ***********\n" );
 	AccessFrequency *pAccFreq = AccessFrequency::Instance();
+	pAccFreq->initialize(loopInfo, 0);
 	pAccFreq->runOnMachineFunction(fn);
 	
 	DEBUG( dbgs() << "*************Interfere Graph *********************\n");
 	InterfereGraph *pIG = InterfereGraph::Instance();
-	pIG->Initialize(li_, tri_);
+	pIG->initialize(li_, tri_);
 	pIG->runOnMachineFunction(fn);
 	
+	SpmAllocator spmAllocator;	
+	spmAllocator.run(&fn, (const AccessFrequency *)pAccFreq, (const InterfereGraph *)pIG);
+	
+	pAccFreq->reset();
+	pIG->m_IGraph.clear();
   
    return true;
 }
