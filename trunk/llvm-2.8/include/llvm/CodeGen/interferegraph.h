@@ -9,7 +9,6 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/LiveIntervalAnalysis.h"
-#include "llvm/Analysis/SPM.h"
 
 using namespace std;
 
@@ -35,7 +34,8 @@ public:
 	virtual ~InterfereGraph() {};
 	static InterfereGraph* Instance();
 	static void Release();
-private:
+
+public:
 	LiveIntervals *li_;
 	const TargetRegisterInfo *tri_;
 	map<int, set<int> > m_IGraph;
