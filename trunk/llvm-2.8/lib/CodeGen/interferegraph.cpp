@@ -6,19 +6,17 @@
 #include "llvm/Target/TargetInstrInfo.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/Module.h"
 
 #undef DEBUG_TYPE
-#define DEBUG_TYPE "ig"
+#define DEBUG_TYPE "af"
 
 namespace llvm
 {
 
 char InterfereGraph::ID = 0;
 InterfereGraph* InterfereGraph::ms_instance = 0;
-
-
-
-
 
 InterfereGraph* InterfereGraph::Instance()
 {
@@ -34,12 +32,20 @@ void InterfereGraph::Release()
 		delete ms_instance;
 	}
 	ms_instance = 0;
+	
+	//if(SPM::IGout().is_open())  
+	//	SPM::IGout().close();
 }
 
 // Two live ranges, [a1, b1) and [a2, b2), interfere with each other, when
 // a1 < b2 && a2 < b1
 bool InterfereGraph::runOnMachineFunction(MachineFunction& mf)
 {
+	string szInfo;
+	string szSrcFile = mf.getMMI().getModule()->getModuleIdentifier();
+	szSrcFile = szSrcFile + "." + "ig";
+	raw_fd_ostream igout(szSrcFile.c_str(), szInfo, raw_fd_ostream::F_Append );
+	
 	typedef DenseMap<unsigned, LiveInterval*> Reg2IntervalMap;
 	MF = &mf;
 	Reg2IntervalMap tmpMap1 = li_->r2iMap_;
@@ -87,13 +93,14 @@ bool InterfereGraph::runOnMachineFunction(MachineFunction& mf)
 			}
 		}
 	}
-	dump();
+	print(igout);
+	//m_IGraph.clear();
 	return true;
 }
 
 void InterfereGraph::dump()
 {
-	print(dbgs());
+	//print(SPM::IGout());
 }
 
 void InterfereGraph::print(raw_ostream &OS) const
@@ -104,7 +111,7 @@ void InterfereGraph::print(raw_ostream &OS) const
 	for(; i2s_p != m_IGraph.end(); i2s_p ++ )
 	{
 		int nReg = (i2s_p->first);
-		OS << "%reg";
+		OS << MF->getFunction()->getName() << "%reg";
 		
 		OS << nReg;
 		OS << ":\t";

@@ -36,6 +36,7 @@
 #include "llvm/Target/TargetInstrInfo.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/Analysis/StaticProfilePass.h"
 using namespace llvm;
 
 namespace {
@@ -47,6 +48,7 @@ namespace {
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addPreserved<ProfileInfo>();
+	  AU.addRequired<StaticProfilePass>();
     }
   };
 }
