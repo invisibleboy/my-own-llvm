@@ -325,19 +325,32 @@ int main(int argc, char **argv) {
     PM.run(mod);
   }
 
-  // Dump the spm allocation info
+  // Do spm allocation
+  SpmAllocator spmAllocator;	
+  spmAllocator.run(&mod);
+  // Dump the spm allocation info  
   std::string fileName = mod.getModuleIdentifier() + ".spm";
   std::ofstream fout;
   fout.setf(std::ios_base::scientific);
   fout.open(fileName.c_str(), std::ios_base::out);
+	
+  fout << "number of functions: " << g_nNumOfFuncs << "\t\tnumber of variables: " << g_nNumOfVars << "\t\ttotal var size: " << g_nTotalSize << "\n";
   fout << "##############################################################################################\n";
   fout << "-------------------------------------First Come First Service---------------------------------\n";
   fout << "##############################################################################################\n";
-  dumpMemory(g_FcfsMemory, fout);
+  double dCost = dumpMemory(g_FcfsMemory, fout);
+  std::ofstream CostOut;
+  CostOut.setf(std::ios_base::scientific);
+  CostOut.open("spm.fcfs", std::ios_base::app);
+  CostOut << mod.getModuleIdentifier() << "\t" << dCost << "\n";
+  CostOut.close();
   fout << "##############################################################################################\n";
   fout << "-------------------------------------Partition While Allocate---------------------------------\n";
   fout << "##############################################################################################\n";
-  dumpMemory(g_PwaMemory, fout);
+  dCost = dumpMemory(g_PwaMemory, fout);
+  CostOut.open("spm.pwa", std::ios_base::app);
+  CostOut << mod.getModuleIdentifier() << "\t" << dCost << "\n";
+  CostOut.close();
   fout.close();
   // Declare success.
   Out->keep();
