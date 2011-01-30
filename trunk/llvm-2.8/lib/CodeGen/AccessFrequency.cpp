@@ -56,14 +56,11 @@ void AccessFrequency::getAnalysisUsage(AnalysisUsage &AU) const
 
 
 bool AccessFrequency::runOnMachineFunction(MachineFunction &mf)
-{
-	string szInfo;
-	string szSrcFile = mf.getMMI().getModule()->getModuleIdentifier();
-	szSrcFile = szSrcFile + "." + "af";
-	raw_fd_ostream afout(szSrcFile.c_str(), szInfo, raw_fd_ostream::F_Append );
+{	
     MF = &mf;
     MRI = &mf.getRegInfo();
     TRI = MF->getTarget().getRegisterInfo();
+	m_nVars = 0;
 	
 	const llvm::Function *fn = mf.getFunction(); 
     for (MachineFunction::const_iterator FI = MF->begin(), FE = MF->end();
@@ -143,9 +140,43 @@ bool AccessFrequency::runOnMachineFunction(MachineFunction &mf)
 			}
         }
     }	
-
-    print(afout);
+	m_nVars = m_RegReadMap.size();
+    //print(afout);
+	//printInt(afout);
 	//reset();
+	
+	std::string szInfo;
+	std::string szSrcFile = mf.getMMI().getModule()->getModuleIdentifier();	
+	std::string szFile = szSrcFile + ".accInt";
+	raw_fd_ostream accIfout(szFile.c_str(), szInfo, raw_fd_ostream::F_Append );
+	printInt(accIfout);
+	accIfout.close();
+	
+	szFile = szSrcFile + ".acc";
+	raw_fd_ostream accfout(szFile.c_str(), szInfo, raw_fd_ostream::F_Append );
+	print(accfout);
+	accfout.close();
+	
+	szFile = szSrcFile + "." + "var";
+	raw_fd_ostream varfout(szFile.c_str(), szInfo, raw_fd_ostream::F_Append );
+	printVars(varfout);
+	varfout.close();
+	
+	szFile = szSrcFile + ".read";
+	raw_fd_ostream readfout(szFile.c_str(), szInfo, raw_fd_ostream::F_Append );
+	printRead(readfout);
+	readfout.close();
+	
+	szFile = szSrcFile + ".write";
+	raw_fd_ostream writefout(szFile.c_str(), szInfo, raw_fd_ostream::F_Append );
+	printWrite(writefout);
+	writefout.close();
+
+	szFile = szSrcFile + ".size";
+	raw_fd_ostream sizefout(szFile.c_str(), szInfo, raw_fd_ostream::F_Append );
+	printSize(sizefout);
+	sizefout.close();
+	
     return true;
 }
 
@@ -155,11 +186,48 @@ void AccessFrequency::reset()
 	m_RegWriteMap.clear();
 	m_StackReadMap.clear();
 	m_StackWriteMap.clear();
+	m_nVars = 0;
 }
 
 void AccessFrequency::dump()
 {
     //print(SPM::AFout());
+}
+
+unsigned int AccessFrequency::SymbolToAddr( unsigned int funcAddr,unsigned int varOffset)
+{
+	varOffset &= 0x0000ffff;
+	funcAddr <<= 16;
+	return funcAddr + varOffset;
+}
+
+unsigned int AccessFrequency::getRegSize(const int nReg) const
+{
+	const TargetRegisterClass *rc =  MRI->getRegClass(nReg);
+	unsigned int nSize = rc->getSize();
+	return nSize;
+}
+
+void AccessFrequency::printInt(raw_ostream &OS)
+{
+	for( DenseMap<int,double>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
+    DMI != DME; ++DMI)
+    {
+		
+		unsigned int nAddr = SymbolToAddr((unsigned int) MF->getFunction(), DMI->first);
+		int times = round(DMI->second);
+		OS << "access type: 0, address: " << nAddr << ", " << "number of bytes: " << getRegSize(DMI->first);
+		OS << ", " << "frequency: " << times << "\n";
+    }
+	
+	for( DenseMap<int,double>::const_iterator DMI = m_RegWriteMap.begin(), DME = m_RegWriteMap.end();
+    DMI != DME; ++DMI)
+    {	
+		unsigned int nAddr = SymbolToAddr((unsigned int) MF->getFunction(), DMI->first);
+		int times = round(DMI->second);
+		OS << "access type: 1, address: " << nAddr << ", " << "number of bytes: " << getRegSize(DMI->first);
+		OS << ", " << "frequency: " << times << "\n";
+    }
 }
 
 void AccessFrequency::print(raw_ostream &OS) const
@@ -173,7 +241,8 @@ void AccessFrequency::print(raw_ostream &OS) const
 		OS << DMI->getKey();
 		OS << ",\t" << DMI->getValue() << "\n";
     }
-    for( DenseMap<int,double>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
+    for( DenseMap<int,double>
+	::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
     DMI != DME; ++DMI)
     {
         OS << MF->getFunction()->getName() << "%reg" << DMI->first << ",\t" << DMI->second << "\n";
@@ -195,4 +264,73 @@ void AccessFrequency::print(raw_ostream &OS) const
     }
     return;
 
+}
+
+void AccessFrequency::printRead(raw_ostream &OS)
+{
+	int nCount = 0;
+	for( DenseMap<int,double>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
+    DMI != DME; ++DMI)
+    {
+        OS << DMI->second;
+		nCount ++;
+		if( nCount < m_nVars )			
+			OS << ", ";
+		
+		if( nCount % 10 == 0 )
+			OS << "\r\n";
+    }
+	
+	OS << "\r\n";
+}
+
+void AccessFrequency::printWrite(raw_ostream &OS)
+{
+	int nCount = 0;
+	for( DenseMap<int,double>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
+    DMI != DME; ++DMI)
+    {
+        OS << m_RegWriteMap[DMI->first];		
+		nCount ++;
+		if( nCount < m_nVars )
+			OS << ", ";
+		if( nCount % 10 == 0 )
+			OS << "\r\n";
+    }
+	
+	OS << "\r\n";
+}
+
+void AccessFrequency::printSize(raw_ostream &OS)
+{
+	int nCount = 0;
+	for( DenseMap<int,double>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
+    DMI != DME; ++DMI)
+    {
+        OS << getRegSize(DMI->first) ;
+		nCount ++;
+		if( nCount < m_nVars )
+			OS << ", ";
+		if( nCount % 10 == 0 )
+			OS << "\r\n";
+    }
+	
+	OS << "\r\n";
+}
+
+void AccessFrequency::printVars(raw_ostream &OS)
+{
+	int nCount = 0;
+	for( DenseMap<int,double>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
+    DMI != DME; ++DMI)
+	{
+		OS << MF->getFunction()->getName() << "_reg" << DMI->first;	
+		nCount ++;
+		if( nCount < m_nVars )
+			OS << ", ";
+		
+		if( nCount % 10 == 0 )
+			OS << "\r\n";
+	}
+	OS << "\r\n";
 }

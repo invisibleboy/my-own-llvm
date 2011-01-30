@@ -103,6 +103,12 @@ void InterfereGraph::dump()
 	//print(SPM::IGout());
 }
 
+
+void InterfereGraph::printIG(raw_ostream &OS)
+{
+		
+}
+
 void InterfereGraph::print(raw_ostream &OS) const
 {
 	map<int, set<int> >::const_iterator i2s_p = m_IGraph.begin();

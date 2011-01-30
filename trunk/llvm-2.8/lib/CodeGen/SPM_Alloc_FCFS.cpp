@@ -33,7 +33,8 @@ int FCFS::Allocator(const llvm::MachineFunction *MF)
 		}
 		
 		// Allocate this most beneficial candidate
-		if(Allocate(*pCandidate) == 0 )
+		int nRet = Allocate(*pCandidate);
+		if( nRet == 0 )
 			m_DataList.erase(pCandidate);
 		else if( (*pCandidate)->m_MemoryCostSet.empty() )
 		{
@@ -107,7 +108,10 @@ int FCFS::Allocate(SPM::CData *pData)
 	else
 	{
 		CAllocNode *allocNode = *AI;
-		allocNode->addData(pData);					
+		if(allocNode->addData(pData) < 0 )
+		{
+			nRet = -1;
+		}
 	}
 	
 	pData->m_MemoryCostSet.erase(pData->m_MemoryCostSet.begin() );   
