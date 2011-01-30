@@ -25,6 +25,7 @@ public:
 		inline void initialize(LiveIntervals *lis, const TargetRegisterInfo *tri) { li_ = lis; tri_ = tri;}
         void print(raw_ostream &OS) const ;
 		void print(raw_ostream &OS, const Module *) const {};
+		void printIG(raw_ostream &OS);
         void dump();		
 		
 public:

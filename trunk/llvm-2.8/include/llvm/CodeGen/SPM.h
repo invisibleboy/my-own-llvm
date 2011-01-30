@@ -8,12 +8,14 @@
 #include <set>
 #include <fstream>
 #include "stdio.h"
+#include "llvm/Module.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h" 
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/AccessFrequency.h"
 #include "llvm/CodeGen/interferegraph.h"
 using namespace llvm;
+
 using namespace std;
 
 namespace SPM
@@ -41,8 +43,8 @@ namespace SPM
 	public:
 		CAllocNode(enum MemoryKind kind, enum AllocType type) { m_kind = kind; m_nSize = 0; m_type = type;}
 				
-		unsigned int addData(CData *data);
-		unsigned int addDataset(CDataClass *dataClass);
+		int addData(CData *data);
+		int addDataset(CDataClass *dataClass);
 		inline void setSize(unsigned int nSize ) { m_nSize = nSize; }
 		inline unsigned int size() { return m_nSize; }
 		
@@ -62,7 +64,7 @@ namespace SPM
 		double m_dCostOfRead;
 		double m_dCostOfWrite;
 		unsigned int m_nSize;
-		unsigned int m_nReserved;
+		int m_nReserved;
 		double m_dTotalCost;
 		std::list<CAllocNode *> m_AllocList;
 
@@ -169,12 +171,19 @@ namespace SPM
 	class SpmAllocator {
 	public:
 		int run(const MachineFunction *, const AccessFrequency *, const InterfereGraph *);
+		int run(Module *);
 		
 	private:
 		int GetConfig();
-		int GetAccess(const AccessFrequency *);
-		int GetInterfere(const InterfereGraph *);
+		int GetAccess(const AccessFrequency *);		
+		int GetInterfere(const InterfereGraph *);		
 		int ComputeDataCost(const MachineFunction *MF);
+		
+		int GetData(ifstream &datafile);
+		int GetSize(ifstream &sizefile);
+		int GetAccess( ifstream &read, bool bRead = true);
+		int GetInterfere( ifstream &ig);
+		int ComputeDataCost();
 	
 	private:
 		// intermediate data structure
@@ -186,9 +195,14 @@ namespace SPM
 	extern map<enum MemoryKind, CMemory *> g_PwaMemory;
 	extern map<enum MemoryKind, CMemory *> g_FcfsMemory;
 	extern map<const MachineFunction *, list<CData *> > g_hDataList;
+	extern map<std::string, map<int, CData * > > g_DataMap;
+	extern std::list<CData *> g_DataList;
 	extern int g_nNumOfMemory;
+	extern int g_nNumOfVars;
+	extern int g_nNumOfFuncs;
+	extern int g_nTotalSize;
 	extern string MemoryName(enum MemoryKind kind);
-	void dumpMemory(std::map<enum MemoryKind, CMemory *> &memoryList, ostream &OS );
+	double dumpMemory(std::map<enum MemoryKind, CMemory *> &memoryList, ostream &OS );
 	void dumpDatasetList(std::list<CDataClass *> &dclist);
 	
 }
