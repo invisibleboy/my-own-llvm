@@ -49,9 +49,19 @@ public:
         virtual bool runOnMachineFunction(MachineFunction &MF);
         void print(raw_ostream &OS) const;
 		void print(raw_ostream &OS, const Module *) const { };		
+		void printInt( raw_ostream &OS );
+		void printRead( raw_ostream &OS );
+		void printWrite( raw_ostream &OS );
+		void printSize( raw_ostream &OS);
+		void printVars( raw_ostream &OS);
         void dump();
 		void reset();
 		void initialize( const MachineLoopInfo * li, const StaticProfilePass *sp ) { MLI = li;  SP = sp;}
+		
+		unsigned int getRegSize( const int nReg ) const;
+		
+	private:
+		unsigned int SymbolToAddr(unsigned int funcAddr, unsigned int varOffset);
 
     protected:
     public:    
@@ -70,6 +80,7 @@ public:
 		
 		const MachineLoopInfo *MLI;
 		const StaticProfilePass *SP;
+		int m_nVars;
 };
 }  // End llvm namespace
 
