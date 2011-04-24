@@ -13,22 +13,38 @@ namespace SPM
 	public:
 		FcfsAlloc() { }; 
 		
-		int Allocator( );       
-		int run();
-		
-		//int Reset();
-
-	private:
-		int ComputeDataCost();
+		int Allocator( );   
+	private:		
 		int Allocate(CData *);
+	};	
+	
+	// Multi-Phase Coloring heuristic
+	class MpcAlloc
+	{
+	public:
+		MpcAlloc() { }; 
+		
+		int Allocator( );       
+	private:				
+		
+		std::list<CData *>::iterator GetSpilled( std::list<CData *> &data_list, std::map<CData *, unsigned int> &hDegree);
+		void SetSubgraph( std::list<CData *> &data_list);			
 
 	private:
-		//int m_nNumOfVariable;
-		//std::list<CData *> &m_DataList;
+		std::map<SPM::MemoryKind, std::set<CData *> > m_hSubgraph;
+	};	
+	
+	// Xue's Coloring heuristic
+	class XueAlloc
+	{
+	public:
+		XueAlloc() { }; 
 		
-	private:
-		// intermediate data structure
-		// std::map<int, CData *> t_hData;      // mapping from the nReg to Data
+		int Allocator( );       
+	private:				
+		
+		std::list<CData *>::iterator GetSpilled( std::list<CData *> &data_list, std::map<CData *, unsigned int> &hDegree);
+		void SetSubgraph( std::list<CData *> &data_list);		
 	};	
 }
 #endif

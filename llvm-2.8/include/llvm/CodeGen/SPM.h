@@ -27,8 +27,8 @@ namespace SPM
 	
 	enum MemoryKind
 	{
-		PCM,
 		SRAM,
+		PCM,		
 		DRAM
 	};
 	
@@ -46,7 +46,7 @@ namespace SPM
 		int addData(CData *data);
 		int addDataset(CDataClass *dataClass);
 		inline void setSize(unsigned int nSize ) { m_nSize = nSize; }
-		inline unsigned int size() { return m_nSize; }
+		inline unsigned int size() { return 1; }		// size assumed as 1 byte
 		
 	private:		
 		unsigned int m_nSize;
@@ -67,6 +67,7 @@ namespace SPM
 		int m_nReserved;
 		double m_dTotalCost;
 		std::list<CAllocNode *> m_AllocList;
+		std::map<unsigned int, std::set<CData *> > m_ColorList;
 
 	public:
 		CMemory( enum MemoryKind kind, double costOfRead, double costOfWrite, unsigned int nSize)
@@ -80,14 +81,26 @@ namespace SPM
 		}		
 	};
 
-	struct MemoryCost
+	
+	
+	class MemoryCost
 	{
+	public:
+		
 		enum MemoryKind m_kind;
 		double m_dCost;
 
-		bool operator < (const struct MemoryCost &mc) const
+		/*bool operator < (const struct MemoryCost &mc) const
 		{
 			return m_dCost < mc.m_dCost;
+		}*/
+	};
+	
+	struct MCCompare
+	{
+		bool operator()(MemoryCost *left, MemoryCost *right)
+		{
+			return left->m_dCost < right->m_dCost;
 		}
 	};
 
@@ -98,12 +111,14 @@ namespace SPM
 		double m_dReads;
 		double m_dWrites;
 		unsigned int m_nSize;
+	public:
 		unsigned int m_nReg;
 		double m_dBenefit;
 		
 	public:
 		std::set<CData *> m_InterfereSet;
-		std::set<struct MemoryCost> m_MemoryCostSet;
+		std::set<MemoryCost *, MCCompare> m_MemoryCostSet;
+		std::list<MemoryCost *> m_MemoryCostList;
 		std::map<enum MemoryKind, double> m_hMemoryCost;
 
 	public:
@@ -136,6 +151,9 @@ namespace SPM
 		
 		string Name(); 		
 		double getBenefit() ;
+		void dumpCostSet();
+		
+		bool IsInterfere(CData *pData);
 	};
 	
 	class CDataClass
@@ -161,7 +179,7 @@ namespace SPM
 		int computeCost();
 		
 	public:
-		std::set<MemoryCost> m_MemoryCostSet;	
+		std::set<MemoryCost *, MCCompare> m_MemoryCostSet;	
 		std::list<CData *> m_Dataset;
 	private:
 		unsigned int m_nSize;
@@ -184,6 +202,8 @@ namespace SPM
 		int GetAccess( ifstream &read, bool bRead = true);
 		int GetInterfere( ifstream &ig);
 		int ComputeDataCost();
+		
+		int dumpGlobalIG(Module *);
 	
 	private:
 		// intermediate data structure
@@ -203,7 +223,9 @@ namespace SPM
 	extern int g_nTotalSize;
 	extern string MemoryName(enum MemoryKind kind);
 	double dumpMemory(std::map<enum MemoryKind, CMemory *> &memoryList, ostream &OS );
+	double dumpMpcMemory(std::map<enum MemoryKind, CMemory *> &memoryList, ostream &OS );
 	void dumpDatasetList(std::list<CDataClass *> &dclist);
+	void dumpFunctionCall(ostream &OS);
 	
 }
 
