@@ -1,6 +1,8 @@
 #ifndef LLVM_CODEGEN_ACCESSFREQUENCY_H
 #define LLVM_CODEGEN_ACCESSFREQUENCY_H
 
+#include <list>
+#include <set>
 #include "llvm/Value.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -9,9 +11,24 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 
+using namespace std;
 namespace llvm{
 	
 	class StaticProfilePass;
+	
+	struct TraceRecord
+	{
+		int m_nReg;
+		int m_nFreq;
+		bool m_bRead;
+	public:
+		TraceRecord(int nReg, int nFreq, bool bRead = true)
+		{
+			m_nReg = nReg;
+			m_nFreq = nFreq;
+			m_bRead = bRead;
+		}
+	};
 	
 class AccessFrequency : public MachineFunctionPass
 {
@@ -62,6 +79,8 @@ public:
 		
 	private:
 		unsigned int SymbolToAddr(unsigned int funcAddr, unsigned int varOffset);
+		
+		void FindTrash();
 
     protected:
     public:    
@@ -71,9 +90,11 @@ public:
 		StringMap<double> m_StackReadMap;
 		StringMap<double> m_StackWriteMap;
 		MachineFunction *MF;
+		
+		std::set<int> m_TrashSet;
 
     private:   // Intermediate data structures       
-
+		std::list<TraceRecord> m_SimTrace;
         MachineRegisterInfo* MRI;
 
         const TargetRegisterInfo *TRI;

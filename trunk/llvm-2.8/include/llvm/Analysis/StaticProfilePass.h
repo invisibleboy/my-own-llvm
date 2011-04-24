@@ -75,6 +75,10 @@ namespace llvm {
     /// getBackEdgeFrequency - Get updated back edges frequency. In case of not
     /// found, use the local edge frequency.
     double getBackEdgeFrequency(FunctionEdge &fedge) const;
+	
+	//////////////////////
+	void printFrequency( Function *F, raw_ostream &OS );
+	int GetFuncCall(Module *module, CallGraph *CG);
   public:
     static char ID; // Class identification, replacement for typeinfo
 
