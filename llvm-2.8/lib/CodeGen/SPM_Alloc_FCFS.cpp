@@ -65,7 +65,8 @@ int FCFS::Allocate(SPM::CData *pData)
 {
 	int nRet = 0;
 	
-	enum MemoryKind kind = pData->m_MemoryCostSet.begin()->m_kind;
+	MemoryCost *pCost = *(pData->m_MemoryCostSet.begin());
+	enum MemoryKind kind = pCost->m_kind;
 	CMemory *memory= g_FcfsMemory[kind];
 	std::list<CAllocNode *> &allocList = memory->m_AllocList;
 	std::list<CAllocNode *>::iterator AI = allocList.begin(), AE = allocList.end();
@@ -114,7 +115,7 @@ int FCFS::Allocate(SPM::CData *pData)
 		}
 	}
 	
-	pData->m_MemoryCostSet.erase(pData->m_MemoryCostSet.begin() );   
+	pData->m_MemoryCostSet.erase(pCost );   
 	//pData->updateBenefit();
 	
 	return nRet;
@@ -166,7 +167,8 @@ int PWA::Allocator(const llvm::MachineFunction *MF)
 int PWA::Allocate(SPM::CDataClass *pDataClass)
 {
 	int nRet = 0;
-	enum MemoryKind kind = pDataClass->m_MemoryCostSet.begin()->m_kind;
+	MemoryCost *pCost = *(pDataClass->m_MemoryCostSet.begin());
+	enum MemoryKind kind = pCost->m_kind;
 	CMemory *memory= g_PwaMemory[kind];
 	
 	if( memory->m_nReserved >= pDataClass->size())
@@ -181,7 +183,8 @@ int PWA::Allocate(SPM::CDataClass *pDataClass)
 		nRet = -1;												
 	}
 	
-	pDataClass->m_MemoryCostSet.erase(pDataClass->m_MemoryCostSet.begin() );   
+	delete pCost;
+	pDataClass->m_MemoryCostSet.erase(pCost );   
 	//pDataClass->updateBenefit();
 	
 	return nRet;
@@ -263,9 +266,9 @@ int PWA::ComputeClassCost()
 				CData *pData = *I;
 				dCost += pData->m_hMemoryCost[IM->first];
 			}
-			struct MemoryCost Cost;
-			Cost.m_kind = IM->first;
-			Cost.m_dCost = dCost;
+			MemoryCost *Cost = new MemoryCost();
+			Cost->m_kind = IM->first;
+			Cost->m_dCost = dCost;
 			pDataClass->m_MemoryCostSet.insert(Cost);
 		}
 	}

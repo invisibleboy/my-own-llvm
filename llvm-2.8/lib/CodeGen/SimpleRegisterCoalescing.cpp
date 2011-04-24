@@ -1842,21 +1842,24 @@ bool SimpleRegisterCoalescing::runOnMachineFunction(MachineFunction &fn) {
   return true;
    * */
    
+  /*
 	DEBUG( dbgs() << "*************Access Frequency Analysis ***********\n" );
-	//AccessFrequency *pAccFreq = AccessFrequency::Instance();
-	//pAccFreq->initialize(loopInfo, 0);
-	//pAccFreq->runOnMachineFunction(fn);
+	AccessFrequency *pAccFreq = AccessFrequency::Instance();
+	pAccFreq->initialize(loopInfo, 0);
+	pAccFreq->runOnMachineFunction(fn);
 	
 	DEBUG( dbgs() << "*************Interfere Graph *********************\n");
-	//InterfereGraph *pIG = InterfereGraph::Instance();
-	//pIG->initialize(li_, tri_);
-	//pIG->runOnMachineFunction(fn);
+	InterfereGraph *pIG = InterfereGraph::Instance();
+	pIG->initialize(li_, tri_);
+	pIG->runOnMachineFunction(fn);
 	
 	//SpmAllocator spmAllocator;	
 	//spmAllocator.run(&fn, (const AccessFrequency *)pAccFreq, (const InterfereGraph *)pIG);
 	
-	//pAccFreq->reset();
-	//pIG->m_IGraph.clear();
+	pAccFreq->reset();
+	pIG->m_IGraph.clear();
+	*/
+	
   
    return true;
 }
