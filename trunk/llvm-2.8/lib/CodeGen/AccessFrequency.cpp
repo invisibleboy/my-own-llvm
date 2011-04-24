@@ -25,8 +25,10 @@ INITIALIZE_PASS(AccessFrequency, "accfreq",
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "accfreq"
 
+#define ROUND(x) ((int)(x+0.5))
 
 extern const std::map<const Function *, std::map<const BasicBlock *, double> > *g_hF2B2Acc;
+extern std::map<std::string, std::set<std::string> > g_hFuncCall;
 AccessFrequency *AccessFrequency::ms_instance = 0;
 AccessFrequency * AccessFrequency::Instance()
 {
@@ -63,6 +65,12 @@ bool AccessFrequency::runOnMachineFunction(MachineFunction &mf)
 	m_nVars = 0;
 	
 	const llvm::Function *fn = mf.getFunction(); 
+	std::string szMain = "main";
+	if(fn->getName() != szMain && g_hFuncCall[szMain].find(fn->getName()) == g_hFuncCall[szMain].end() )
+	{
+		errs() << "--------qali:--------Skip function " << fn->getName() << " in AccessFrequency !\n";
+		return true;
+	}
     for (MachineFunction::const_iterator FI = MF->begin(), FE = MF->end();
        FI != FE; ++FI)
     {
@@ -98,13 +106,20 @@ bool AccessFrequency::runOnMachineFunction(MachineFunction &mf)
 						&& TargetRegisterInfo::isVirtualRegister(MO.getReg()) )
 					{
 						unsigned MOReg = MO.getReg();
+						unsigned int nSize = getRegSize(MOReg);
 						if( MO.isUse() )
-						{							
+						{					
+							int nAcc = ROUND(dFactor);
 							m_RegReadMap[MOReg] = m_RegReadMap[MOReg] + dFactor;
+							//if( nAcc >= 1)
+								m_SimTrace.push_back(llvm::TraceRecord(MOReg, nAcc));
 						}
 						else if( MO.isDef())
 						{
+							int nAcc = ROUND(dFactor);
 							m_RegWriteMap[MOReg] = m_RegWriteMap[MOReg] + dFactor;
+							//if( nAcc >= 1)
+								m_SimTrace.push_back(llvm::TraceRecord(MOReg, nAcc, false));
 						}
 						else
 							assert("Unrecoganized operation in AccessFrequency::runOnMachineFunction!\n");
@@ -186,6 +201,7 @@ void AccessFrequency::reset()
 	m_RegWriteMap.clear();
 	m_StackReadMap.clear();
 	m_StackWriteMap.clear();
+	m_SimTrace.clear();
 	m_nVars = 0;
 }
 
@@ -210,7 +226,7 @@ unsigned int AccessFrequency::getRegSize(const int nReg) const
 
 void AccessFrequency::printInt(raw_ostream &OS)
 {
-	for( DenseMap<int,double>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
+	/*for( DenseMap<int,double>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
     DMI != DME; ++DMI)
     {
 		
@@ -227,7 +243,22 @@ void AccessFrequency::printInt(raw_ostream &OS)
 		int times = round(DMI->second);
 		OS << "access type: 1, address: " << nAddr << ", " << "number of bytes: " << getRegSize(DMI->first);
 		OS << ", " << "frequency: " << times << "\n";
-    }
+    }*/
+	std::list<llvm::TraceRecord>::iterator I = m_SimTrace.begin(), E = m_SimTrace.end();
+	for( ; I != E; ++ I)
+	{
+		int times = (*I).m_nFreq;
+		unsigned int nSize = getRegSize((*I).m_nReg);
+		unsigned int nAddr = SymbolToAddr((unsigned int) MF->getFunction(), (*I).m_nReg);
+		
+		OS << "access type: ";
+		if( (*I).m_bRead )
+			OS << "0";
+		else 
+			OS << "1";
+		OS << ", address: " << nAddr << ", " << "number of bytes: " << nSize;
+		OS << ", " << "frequency: " << times << "\n";
+	}
 }
 
 void AccessFrequency::print(raw_ostream &OS) const
@@ -241,11 +272,12 @@ void AccessFrequency::print(raw_ostream &OS) const
 		OS << DMI->getKey();
 		OS << ",\t" << DMI->getValue() << "\n";
     }
-    for( DenseMap<int,double>
-	::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
+    for( DenseMap<int,double>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
     DMI != DME; ++DMI)
     {
-        OS << MF->getFunction()->getName() << "%reg" << DMI->first << ",\t" << DMI->second << "\n";
+		int nTimes = ROUND(DMI->second);
+		//if( nTimes >= 1 )
+			OS << MF->getFunction()->getName() << "%reg" << DMI->first << ",\t" << DMI->second << "\n";		
     }
 
     OS << "\nWrite Access Frequency for " << MF->getFunction()->getName() << ":\n";
@@ -260,7 +292,9 @@ void AccessFrequency::print(raw_ostream &OS) const
     for( DenseMap<int, double>::const_iterator DMI = m_RegWriteMap.begin(), DME = m_RegWriteMap.end();
     DMI != DME; ++DMI)
     {
-        OS << MF->getFunction()->getName() << "%reg" << DMI->first << ",\t" << DMI->second << "\n";
+		int nTimes = ROUND(DMI->second);
+		//if( nTimes >= 1 )		
+			OS << MF->getFunction()->getName() << "%reg" << DMI->first << ",\t" << DMI->second << "\n";
     }
     return;
 
@@ -272,7 +306,7 @@ void AccessFrequency::printRead(raw_ostream &OS)
 	for( DenseMap<int,double>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
     DMI != DME; ++DMI)
     {
-        OS << DMI->second;
+        OS << (int)DMI->second;
 		nCount ++;
 		if( nCount < m_nVars )			
 			OS << ", ";
@@ -290,7 +324,7 @@ void AccessFrequency::printWrite(raw_ostream &OS)
 	for( DenseMap<int,double>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
     DMI != DME; ++DMI)
     {
-        OS << m_RegWriteMap[DMI->first];		
+        OS << (int)m_RegWriteMap[DMI->first];		
 		nCount ++;
 		if( nCount < m_nVars )
 			OS << ", ";
@@ -333,4 +367,19 @@ void AccessFrequency::printVars(raw_ostream &OS)
 			OS << "\r\n";
 	}
 	OS << "\r\n";
+}
+
+void AccessFrequency::FindTrash()
+{
+	for( DenseMap<int, double>::const_iterator DMI = m_RegReadMap.begin(), DME = m_RegReadMap.end();
+    DMI != DME; ++DMI)
+    {
+		int nTimes = ROUND(DMI->second);
+		if( nTimes == 0 )
+		{
+			nTimes = ROUND(m_RegWriteMap[DMI->first]);
+			if( nTimes == 0)
+				m_TrashSet.insert( DMI->first);
+		}
+	}			
 }

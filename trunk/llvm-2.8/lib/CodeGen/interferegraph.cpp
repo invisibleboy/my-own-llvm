@@ -12,6 +12,7 @@
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "af"
 
+extern std::map<std::string, std::set<std::string> > g_hFuncCall;
 namespace llvm
 {
 
@@ -41,6 +42,16 @@ void InterfereGraph::Release()
 // a1 < b2 && a2 < b1
 bool InterfereGraph::runOnMachineFunction(MachineFunction& mf)
 {
+	
+	const llvm::Function *fn = mf.getFunction(); 
+	std::string szMain = "main";
+	if(fn->getName() != szMain && g_hFuncCall[szMain].find(fn->getName()) == g_hFuncCall[szMain].end() )
+	{
+		errs() << "--------qali:--------Skip function " << fn->getName() << " in InterfereGraph !\n";
+		return true;
+	}
+	
+	//////////////////////////////////////////////////////////
 	string szInfo;
 	string szSrcFile = mf.getMMI().getModule()->getModuleIdentifier();
 	szSrcFile = szSrcFile + "." + "ig";
@@ -77,8 +88,10 @@ bool InterfereGraph::runOnMachineFunction(MachineFunction& mf)
 					DEBUG( dbgs() << "\n");
 					if( RI1->start < RI2->end  && RI2->start < RI1->end )
 					{
-						m_IGraph[li1->reg].insert(li2->reg);
-						m_IGraph[li2->reg].insert(li1->reg);
+						if( li1->reg < li2->reg)
+							m_IGraph[li1->reg].insert(li2->reg);
+						else
+							m_IGraph[li2->reg].insert(li1->reg);
 						break;						
 					}
 					else if( RI1->start >= RI2->end)

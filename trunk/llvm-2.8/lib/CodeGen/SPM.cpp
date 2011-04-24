@@ -10,7 +10,7 @@
 using namespace std;
 using namespace llvm;
 using namespace SPM;
-
+extern std::map<std::string, std::set<std::string> > g_hFuncCall;
 namespace SPM
 {
 	map<enum MemoryKind, CMemory *> g_PwaMemory;
@@ -22,7 +22,10 @@ namespace SPM
 	int g_nNumOfVars = 0;
 	int g_nNumOfFuncs = 0;
 	int g_nTotalSize = 0;
+	std::map<std::string, std::set<std::string> > g_hFuncInter;
 }
+
+
 std::string SPM::CData::Name()
 { 
 	//std::string szFunc = m_pMF->getFunction()->getName();
@@ -33,18 +36,19 @@ std::string SPM::CData::Name()
 
 double SPM::CData::getBenefit()
 { 
-	assert( !m_MemoryCostSet.empty() );
+	assert( !m_MemoryCostList.empty() );
 	
 	m_dBenefit = 0.0;
-	set<struct MemoryCost>::const_iterator I = m_MemoryCostSet.begin(), J = I;
+	//std::set<MemoryCost *, MCCompare>::const_iterator I = m_MemoryCostSet.begin(), J = I;
+	std::list<MemoryCost *>::const_iterator I = m_MemoryCostList.begin(), J = I;
 	++ J;
-	if( J == m_MemoryCostSet.end() )
+	if( J == m_MemoryCostList.end() )
 		m_dBenefit = 0.0;
 	else 
 	{
-		MemoryCost first = *I;
-		MemoryCost second = *J;
-		m_dBenefit = second.m_dCost - first.m_dCost;
+		MemoryCost *first = *I;
+		MemoryCost *second = *J;
+		m_dBenefit = second->m_dCost - first->m_dCost;
 	}
 	return m_dBenefit;
 }
@@ -61,11 +65,9 @@ int SPM::CAllocNode::addData(SPM::CData *data)
 	int nDiff = 0;
 	if( m_nSize < data->size())
 	{
-		nDiff = data->size() - m_nSize;
-		m_nSize = data->size();		
+		nDiff = data->size() - m_nSize;			
 	}
-	m_Dataset.push_back(data);
-	m_FunctionSet.insert(data->getFunction() );
+	
 	//m_dTotalCost += data->m_hMemoryCost[m_kind];
 	if(m_type == AT_FCFS)
 	{		
@@ -79,6 +81,10 @@ int SPM::CAllocNode::addData(SPM::CData *data)
 			return -1;
 		g_PwaMemory[m_kind]->m_nReserved -= nDiff;
 	}
+	m_Dataset.push_back(data);
+	m_FunctionSet.insert(data->getFunction() );
+	if( nDiff > 0 )
+		m_nSize = data->size();	
 	return nDiff;
 }
 
@@ -121,13 +127,13 @@ int SPM::SpmAllocator::run(Module *module)
 	 std::string varFile = BaseName + ".opt.var";
 	 fin.open(varFile.c_str());
 	 GetData(fin);
-	 DEBUG(llvm::errs() << "Read Data file: " << g_DataList.size() << " amount\n" );
+	 llvm::errs() << "Read Data file: " << g_DataList.size() << " amount\n" ;
 	 fin.close();
 	 
 	 std::string sizeFile = BaseName + ".opt.size";
 	 fin.open(sizeFile.c_str());
 	 GetSize(fin);
-	 DEBUG(llvm::errs() << "Read size file: " << g_nTotalSize << " amount\n" );
+	 llvm::errs() << "Read size file: " << g_nTotalSize << " amount\n" ;
 	 fin.close();
 	 
 	 std::string readFile = BaseName + ".opt.read";
@@ -145,9 +151,27 @@ int SPM::SpmAllocator::run(Module *module)
 	 GetInterfere(fin);
 	 fin.close();
 
+	 dumpGlobalIG(module);
 	 ComputeDataCost();
-	 FcfsAlloc spmAlloc;
-	 spmAlloc.Allocator();
+	 
+	 //g_bBSA = false;
+	//DEBUG(g_bBSA = true);
+	 
+	if( false )
+	{
+		FcfsAlloc fcfsAlloc;
+		fcfsAlloc.Allocator();
+	}
+	else if(false)
+	{
+		MpcAlloc mpcAlloc;
+		mpcAlloc.Allocator();
+	}
+	else
+	{
+		XueAlloc xueAlloc;
+		xueAlloc.Allocator();
+	}
 	return 0;
 }
 
@@ -226,8 +250,17 @@ int SPM::SpmAllocator::GetData(ifstream &datafile)
 			szName = szName.substr(0, nLen-1);
 		unsigned int nFunc = szName.find("_reg");
 		szFunc = szName.substr(0, nFunc);
+		
+		// remove unused functions
+		std::string szMain = "main";
+		int n = g_hFuncCall.size();
+		int nn = g_hFuncCall[szMain].size();
+		int nnn = g_hFuncCall["main"].size();
+		if( szFunc != szMain && g_hFuncCall[szMain].find(szFunc) == g_hFuncCall[szMain].end())
+			continue;
+		
 		szName = szName.substr(nFunc+1, nLen-nFunc-1);
-		DEBUG(if( szName.size() <= 3 ) llvm::errs() << szFunc << ":" << szName << "\n");
+		//DEBUG(if( szName.size() <= 3 ) llvm::errs() << szFunc << ":" << szName << "\n");
 			
 		szReg = szName.substr(3);
 		unsigned int nReg = atoi(szReg.c_str());
@@ -304,6 +337,7 @@ int SPM::SpmAllocator::GetInterfere(ifstream &ig)
 				std::string szNum = szName.substr(0, nNum);
 				int nReg = atoi(szNum.c_str());
 				CData *ptmpData = g_DataMap[szFunc][nReg];
+				assert(pData != NULL && ptmpData != NULL);
 				pData->m_InterfereSet.insert(ptmpData);
 				
 				if( nNum + 1 == szName.size() )
@@ -338,11 +372,28 @@ int SPM::SpmAllocator::ComputeDataCost()
 		map<enum MemoryKind, CMemory *>::const_iterator IM = g_FcfsMemory.begin(), EM = g_FcfsMemory.end();
 		for(; IM != EM; ++IM)
 		{
-			struct MemoryCost Cost;
-			Cost.m_kind = IM->first;
-			Cost.m_dCost = IM->second->m_dCostOfRead * pData->getRead() + IM->second->m_dCostOfWrite * pData->getWrite();
-			pData->m_MemoryCostSet.insert(Cost);
-			pData->m_hMemoryCost[Cost.m_kind] = Cost.m_dCost;
+			MemoryCost *Cost = new MemoryCost();
+			Cost->m_kind = IM->first;
+			Cost->m_dCost = (IM->second->m_dCostOfRead * pData->getRead() + IM->second->m_dCostOfWrite * pData->getWrite());
+			//pData->m_MemoryCostSet.insert(Cost);
+			pData->m_hMemoryCost[Cost->m_kind] = Cost->m_dCost;
+			
+			/*std::list<MemoryCost *>::iterator m_p = pData->m_MemoryCostList.begin(), m_e = pData->m_MemoryCostList.end();
+			for(; m_p != m_e; ++ m_p)
+			{
+				if(Cost->m_dCost < (*m_p)->m_dCost )
+					break;
+			}
+			pData->m_MemoryCostList.insert(m_p, Cost);*/
+			
+			// sort it by SRAM < PCM < DRAM
+			std::list<MemoryCost *>::iterator m_p = pData->m_MemoryCostList.begin(), m_e = pData->m_MemoryCostList.end();
+			for(; m_p != m_e; ++ m_p)
+			{
+				if(Cost->m_kind < (*m_p)->m_kind )
+					break;
+			}
+			pData->m_MemoryCostList.insert(m_p, Cost);
 		}
 	}
 	return 0;
@@ -395,11 +446,11 @@ int SPM::SpmAllocator::ComputeDataCost(const MachineFunction *MF)
 		map<enum MemoryKind, CMemory *>::const_iterator IM = g_FcfsMemory.begin(), EM = g_FcfsMemory.end();
 		for(; IM != EM; ++IM)
 		{
-			struct MemoryCost Cost;
-			Cost.m_kind = IM->first;
-			Cost.m_dCost = IM->second->m_dCostOfRead * pData->getRead() + IM->second->m_dCostOfWrite * pData->getWrite();
+			MemoryCost *Cost = new MemoryCost();
+			Cost->m_kind = IM->first;
+			Cost->m_dCost = (IM->second->m_dCostOfRead * pData->getRead() + IM->second->m_dCostOfWrite * pData->getWrite());
 			pData->m_MemoryCostSet.insert(Cost);
-			pData->m_hMemoryCost[Cost.m_kind] = Cost.m_dCost;
+			pData->m_hMemoryCost[Cost->m_kind] = Cost->m_dCost;
 		}
 	}
 	return 0;
@@ -433,11 +484,11 @@ double SPM::CDataClass::getBenefit()
 { 
 	assert( !m_MemoryCostSet.empty() );
 		
-	set<struct MemoryCost>::const_iterator I = m_MemoryCostSet.begin(), J = ++ I;
+	set<MemoryCost *, MCCompare>::const_iterator I = m_MemoryCostSet.begin(), J = ++ I;
 	if( J == m_MemoryCostSet.end() )
 		m_dBenefit = 0.0;
 	else 
-		m_dBenefit = J->m_dCost - I->m_dCost;
+		m_dBenefit = (*J)->m_dCost - (*I)->m_dCost;
 	return m_dBenefit;
 }
 
@@ -454,12 +505,70 @@ string SPM::MemoryName(enum MemoryKind kind)
 	}
 	return szName;
 }
+
+double SPM::dumpMpcMemory(std::map<enum MemoryKind, CMemory *> &memoryList, ostream &OS)
+{
+	std::map<enum MemoryKind, CMemory *>::iterator I = memoryList.begin(), E = memoryList.end();
+	double dTotal = 0.0;
+	double dTotalReads = 0.0;
+	double dTotalWrites = 0.0;
+	for(; I != E; ++I)
+	{
+		double dReads = 0.0;
+		double dWrites = 0.0;
+		double dCost = 0.0;
+		SPM::CMemory *pMemory = I->second;
+		OS << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n";
+		OS << SPM::MemoryName(pMemory->m_kind) << ":\t\n";		
+		OS << "Cost:\t" << pMemory->m_dCostOfRead << "(per read)\t" << pMemory->m_dCostOfWrite << "(per write)\t\t";
+		
+		OS << "Used:\t" << pMemory->m_ColorList.size() << "/" << pMemory->m_nSize << ",\t";		
+		OS << pMemory->m_ColorList.size()/(double)pMemory->m_nSize << "\n";
+		
+		DEBUG(OS << "Data allocation:\n");	
+		map<unsigned int, std::set<CData *> >::iterator i2c_p = pMemory->m_ColorList.begin(), i2c_e = pMemory->m_ColorList.end();
+		for(; i2c_p != i2c_e; ++ i2c_p)
+		{
+			set<CData *>::iterator ds_p = i2c_p->second.begin(), ds_e = i2c_p->second.end();
+			for(; ds_p != ds_e; ++ ds_p )
+			{
+				CData *pData = *ds_p;
+				DEBUG(OS << pData->Name() << ":\t");
+				map<SPM::MemoryKind, double>::iterator IMC = pData->m_hMemoryCost.begin(), EMC = pData->m_hMemoryCost.end();
+				for(; IMC != EMC; ++IMC)
+				{
+					DEBUG(OS << SPM::MemoryName(IMC->first) << "(" << IMC->second << ")\t");
+					if( IMC->first == pMemory->m_kind )
+					{
+						dReads += pData->getRead() ;
+						dWrites += pData->getWrite() ; // don't consider data size
+					}
+					if( IMC->first == pMemory->m_kind )
+						dCost += IMC->second;
+				}
+				DEBUG(OS << "\tAddr:\t" << i2c_p->first << "---" << i2c_p->first + pData->size() - 1 << "\n");	
+			}
+		}
+		OS << "\nCost in total for " << SPM::MemoryName(pMemory->m_kind) << ":\t" << dCost << "\n";
+		OS << "\nReads: " << dReads << "\tWrites: " << dWrites << "\n\n";
+		dTotal += dCost;
+		dTotalReads += dReads;
+		dTotalWrites += dWrites;		
+	}
+	OS << "\nCost in total for this algorithm: \t" << dTotal << "\n";
+	OS << "\nTotal Reads: " << dTotalReads << "\tTotal Writes: " << dTotalWrites << "\n\n";
+	return dTotal;
+}
 double SPM::dumpMemory(std::map<enum MemoryKind, CMemory *> &memoryList, ostream &OS )
 {
 	std::map<enum MemoryKind, CMemory *>::iterator I = memoryList.begin(), E = memoryList.end();
 	double dTotal = 0.0;
+	double dTotalReads = 0.0;
+	double dTotalWrites = 0.0;
 	for(; I != E; ++I)
 	{
+		double dReads = 0.0;
+		double dWrites = 0.0;
 		double dCost = 0.0;
 		SPM::CMemory *pMemory = I->second;
 		OS << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n";
@@ -484,6 +593,11 @@ double SPM::dumpMemory(std::map<enum MemoryKind, CMemory *> &memoryList, ostream
 				{
 					DEBUG(OS << SPM::MemoryName(IMC->first) << "(" << IMC->second << ")\t");
 					if( IMC->first == pMemory->m_kind )
+					{
+						dReads += (*ID)->getRead() * (*ID)->size();
+						dWrites += (*ID)->getWrite() * (*ID)->size();
+					}
+					if( IMC->first == pMemory->m_kind )
 						dCost += IMC->second;
 				}
 				DEBUG(OS << "\tAddr:\t" << nOffset << "---" << nOffset + (*ID)->size() - 1 << "\n");	
@@ -491,9 +605,13 @@ double SPM::dumpMemory(std::map<enum MemoryKind, CMemory *> &memoryList, ostream
 			nOffset += alloc->size();
 		}
 		OS << "\nCost in total for " << SPM::MemoryName(pMemory->m_kind) << ":\t" << dCost << "\n";
+		OS << "\nReads: " << dReads << "\tWrites: " << dWrites << "\n\n";
 		dTotal += dCost;
+		dTotalReads += dReads;
+		dTotalWrites += dWrites;
 	}
-	OS << "\nCost in total for this algorithm: \t" << dTotal << "\n\n";
+	OS << "\nCost in total for this algorithm: \t" << dTotal << "\n";
+	OS << "\nTotal Reads: " << dTotalReads << "\tTotal Writes: " << dTotalWrites << "\n\n";
 	return dTotal;
 }
 
@@ -502,4 +620,84 @@ void SPM::dumpDatasetList(std::list<CDataClass *> &dclist)
 	std::list<CDataClass *>::iterator I = dclist.begin(), E = dclist.end();
 	for(; I != E ; ++I )
 		(*I)->dump();
+}
+
+int SPM::SpmAllocator::dumpGlobalIG(llvm::Module *mod)
+{
+	std::string fileName = mod->getModuleIdentifier() + ".gIG";	
+	std::ofstream fout;
+	fout.open(fileName.c_str(), std::ios_base::out);
+	
+	std::list<CData *> &DataList = g_DataList;
+	std::list<CData *>::iterator I = DataList.begin(), E = DataList.end();
+	int nCount = 0;
+	for(; I != E; ++I)
+	{
+		const string &srcFunc = (*I)->getFunction();
+		std::list<CData *>::iterator I1 = I, E1 = DataList.end();
+		++I1;
+		for(; I1 != E1; ++I1)
+		{
+			const string &dFunc = (*I1)->getFunction();
+			// Function interfere
+			if( g_hFuncCall[srcFunc].find(dFunc) != g_hFuncCall[srcFunc].end()
+				|| g_hFuncCall[dFunc].find(srcFunc) != g_hFuncCall[dFunc].end() )
+			{
+				fout << srcFunc << "_reg" << (*I)->m_nReg << ",";
+				fout << dFunc << "_reg" << (*I1)->m_nReg << " ";		
+				++nCount;
+				if( nCount % 5 == 0)
+					fout << "\r\n";
+			}
+			// live range interfere
+			else if((*I)->m_InterfereSet.find((*I1) ) != (*I)->m_InterfereSet.end()
+				|| (*I1)->m_InterfereSet.find((*I) ) != (*I1)->m_InterfereSet.end())
+			{
+				fout << srcFunc << "_reg" << (*I)->m_nReg << ",";
+				fout << dFunc << "_reg" << (*I1)->m_nReg << " ";
+				++nCount;
+				if( nCount % 5 == 0)
+					fout << "\r\n";
+			}			
+		}
+	}
+	fout << "~\r\n";
+	fout.close();
+	return 0;
+}
+
+
+void SPM::dumpFunctionCall(ostream &OS)
+{
+	std::map<std::string, std::set<std::string> >::iterator f2f_p = g_hFuncCall.begin(), f2f_e = g_hFuncCall.end();
+	for(; f2f_p != f2f_e; ++ f2f_p)
+	{
+		OS << f2f_p->first << ":\t";
+		std::set<std::string>::iterator f_p = f2f_p->second.begin(), f_e = f2f_p->second.end();
+		for(; f_p != f_e; ++ f_p)
+			OS << *f_p << ", ";
+		OS << "\n";
+	}
+}
+
+void SPM::CData::dumpCostSet()
+{
+	std::list<MemoryCost *>::iterator MI = m_MemoryCostList.begin(), ME = m_MemoryCostList.end();
+	for( ; MI != ME; ++ MI)
+		llvm::outs() << (*MI)->m_kind << "," << (*MI)->m_dCost << '\t';
+	llvm::outs() << "\n";
+}
+
+bool CData::IsInterfere(CData *right)
+{
+	if( this->m_InterfereSet.find(right) != this->m_InterfereSet.end()
+		|| right->m_InterfereSet.find(this) != right->m_InterfereSet.end() )
+		return true;
+	
+	std::string srcFunc = this->getFunction();
+	std::string dFunc = right->getFunction();
+	if( g_hFuncCall[srcFunc].find(dFunc) != g_hFuncCall[srcFunc].end()
+		|| g_hFuncCall[dFunc].find(srcFunc) != g_hFuncCall[dFunc].end() )
+		return true;
+	return false;
 }
