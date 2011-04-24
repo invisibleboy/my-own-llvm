@@ -38,15 +38,152 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/StaticProfilePass.h"
-
+//#include "llvm/Analysis/StaticCfg.h"
 using namespace llvm;
 
 //extern const std::map<const Function *, std::map<const BasicBlock *, double> > &g_hF2B2Acc;
 //extern int GetAccess(const std::map<const Function *, std::map<const BasicBlock *, double> > &left );
+
 const std::map<const Function *, std::map<const BasicBlock *, double> > *g_hF2B2Acc;
+std::map<std::string, std::set<std::string> > g_hFuncCall;
+bool g_bRecursive = false;
+
+void printCFG(Function *function, raw_ostream &OS)
+{
+	OS << static_cast<Value&>(*function);
+}
+
+void dumpFreq()
+{
+	std::map<const Function *, std::map<const BasicBlock *, double> >::const_iterator f2b2acc_p = g_hF2B2Acc->begin(), E = g_hF2B2Acc->end();
+	for( ; f2b2acc_p  != E; ++ f2b2acc_p )
+	{
+		errs() << "\n" << f2b2acc_p->first->getName() << ":\n";
+		std::map<const BasicBlock *, double>::const_iterator b2acc_p = f2b2acc_p->second.begin(), EE = f2b2acc_p->second.end();
+		for(; b2acc_p != EE; ++ b2acc_p)
+			errs() << b2acc_p->first->getName() << "\n";
+	}
+}
+void StaticProfilePass::printFrequency( Function *F, raw_ostream &OS )
+{
+	dumpFreq();
+	OS << "\n###################################################################\n";
+	BlockCounts &blocks = BlockInformation[F];
+    for (BlockCounts::iterator BI = blocks.begin(), BE = blocks.end();
+         BI != BE; ++BI)
+		 {
+			 OS << "\n";
+			 OS << F->getName() << "_";
+			 OS << BI->first->getName();
+			 OS << ":\t";
+			 OS << BI->second;
+		 }
+	/*for (Function::const_iterator I = F->begin(), E = F->end(); I != E; ++I)
+	{
+		if (I->hasName())
+		{              // Print out the label if it exists...
+			OS << "\n";
+			OS << F->getName() << "_";
+			OS << I->getName();
+			OS << ":\t";
+			
+			std::map<const Function *, std::map<const BasicBlock *, double> >::const_iterator f2b2acc_p, E = g_hF2B2Acc->end();
+			if( (f2b2acc_p = g_hF2B2Acc->find(F) ) != E )
+			{
+				std::map<const BasicBlock *, double>::const_iterator b2acc_p, EE = f2b2acc_p->second.end();
+				if( (b2acc_p = f2b2acc_p->second.find(I)) != EE )
+					OS << b2acc_p->second;
+			}
+		}
+	}*/
+}
+
 int GetAccess(const std::map<const Function *, std::map<const BasicBlock *, double> > &left)
 {
 	g_hF2B2Acc = &left;		
+	return 0;
+}
+
+int StaticProfilePass::GetFuncCall(Module *module, CallGraph *CG)
+{
+	if( g_bRecursive )
+		return 0;
+		
+	CallGraphNode *root = CG->getRoot();
+	SmallVector<CallGraphNode *, 48> stack;
+	std::set<Function *> funcSet;
+
+	// Added the function root into the stack.
+	stack.push_back(root);
+	funcSet.insert((root->getFunction()) );
+	
+	//////////////////////////////////
+	std::string szTemp;
+	std::string szCfg = module->getModuleIdentifier() + ".cfg";
+	std::string szFreq = module->getModuleIdentifier() + ".freq";
+	raw_fd_ostream cfgFile(szCfg.c_str(), szTemp, raw_fd_ostream::F_Append);
+	raw_fd_ostream freqFile(szFreq.c_str(), szTemp, raw_fd_ostream::F_Append);
+	
+	if( root->getFunction())
+	{
+		printCFG(root->getFunction(), cfgFile);
+		printFrequency(root->getFunction(), freqFile);
+	}
+	///////////////////////////////////////////
+
+	while (!stack.empty()) {
+		CallGraphNode *CGN = stack.pop_back_val();
+		if (Function *F = CGN->getFunction()) {
+			// Add successors to the stack for future processing.
+			for (CallGraphNode::iterator CI = CGN->begin(), CE = CGN->end();
+			   CI != CE; ++CI)
+			{
+				Function *Callee = CI->second->getFunction();
+				if( Callee && !Callee->isDeclaration() )
+				{
+					if( funcSet.find(Callee) == funcSet.end())	
+					{
+						stack.push_back(CI->second);
+						printCFG(Callee, cfgFile);
+						printFrequency(Callee, freqFile);
+					}
+					g_hFuncCall[F->getName()].insert(Callee->getName());
+					funcSet.insert(Callee);
+				}
+				
+			}
+		}
+	}
+	cfgFile.close();
+	freqFile.close();
+	
+	std::set<Function *>::iterator K = funcSet.begin(), KE = funcSet.end();
+	for( ; K != KE; ++K)
+	{
+		std::set<Function *>::iterator I = funcSet.begin(), E1 = funcSet.end();
+		for(; I != E1; ++I)
+		{
+			std::set<Function *>::iterator J = funcSet.begin(), E2 = funcSet.end();
+			for(; J != E2; ++ J)
+			{
+				std::set<std::string> & IRels = g_hFuncCall[(*I)->getName()];
+				std::set<std::string> & KRels = g_hFuncCall[(*K)->getName()];
+				if( IRels.find((*K)->getName()) != IRels.end() && KRels.find((*J)->getName()) != KRels.end() )
+					g_hFuncCall[(*I)->getName()].insert((*J)->getName());						
+			}
+		}
+	}	
+		
+	errs() << "-----------function call--------------------\n";
+	std::map<std::string, std::set<std::string> >::iterator I = g_hFuncCall.begin(), E = g_hFuncCall.end();
+	for( ; I != E; ++I)
+	{
+		errs() << I->first << ":\t";
+		std::set<std::string>::iterator FI = I->second.begin(), FE = I->second.end();
+		for(; FI != FE; ++FI )
+			errs() << *FI << ",";
+		errs() << "\n";			
+	}
 	return 0;
 }
 
@@ -118,6 +255,7 @@ bool StaticProfilePass::runOnModule(Module &M) {
   CalculateGlobalInfo(M);
 
 	GetAccess(BlockInformation);
+	GetFuncCall(&M, CG);
   return false;
 }
 
@@ -183,6 +321,8 @@ void StaticProfilePass::Preprocess() {
         // If successor is in VisitStack, it is a back edge.
         if (InStack.count(Current)) {
           // Save the function back edge.
+		  llvm::errs() << "Recursive function calling for " << CurrentFunct->getName() << "\n";
+		  g_bRecursive = true;
           FunctionBackEdges.insert(
             std::make_pair(Parent->getFunction(), CurrentFunct)
           );
@@ -425,9 +565,14 @@ void StaticProfilePass::PropagateCallFrequency(CallGraphNode *root, bool end) {
 /// CalculateGlobalInfo - With calculated function frequency, recalculate block
 /// and edge frequencies taking it into consideration.
 void StaticProfilePass::CalculateGlobalInfo(Module &M) {
-  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
+	
+	  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function *F = MI;
 
+	
+	
+	
+	
     // Obtain call frequency.
     double cfreq = FunctionInformation[F];
 
@@ -437,8 +582,9 @@ void StaticProfilePass::CalculateGlobalInfo(Module &M) {
     EdgeWeights &edges = EdgeInformation[F];
     for (EdgeWeights::iterator EI = edges.begin(), EE = edges.end();
          EI != EE; ++EI)
-      EI->second *= cfreq;
-
+		 {			
+			EI->second *= cfreq;
+		 }	
     DEBUG(errs() << "Global blocks for function: " << F->getName() << "\n");
 
     // Update block frequency considering function call frequency.
@@ -446,7 +592,7 @@ void StaticProfilePass::CalculateGlobalInfo(Module &M) {
     for (BlockCounts::iterator BI = blocks.begin(), BE = blocks.end();
          BI != BE; ++BI)
       BI->second *= cfreq;
-  }
+  } 
 }
 
 /// getBackEdgeFrequency - Get updated back edges frequency. In case of not
@@ -460,3 +606,4 @@ double StaticProfilePass::getBackEdgeFrequency(FunctionEdge &fedge) const {
   I = LocalEdgeFrequency.find(fedge);
   return (I != LocalEdgeFrequency.end() ? I->second : 0.0);
 }
+
