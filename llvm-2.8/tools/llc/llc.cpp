@@ -328,9 +328,16 @@ int main(int argc, char **argv) {
   // Do spm allocation
   SpmAllocator spmAllocator;	
   spmAllocator.run(&mod);
+  
+   std::ofstream fout;
+  // Dump the function call info
+  std::string fcFile = mod.getModuleIdentifier() + ".fc";
+  fout.open(fcFile.c_str());
+  SPM::dumpFunctionCall(fout);
+  fout.close();
   // Dump the spm allocation info  
   std::string fileName = mod.getModuleIdentifier() + ".spm";
-  std::ofstream fout;
+ 
   fout.setf(std::ios_base::scientific);
   fout.open(fileName.c_str(), std::ios_base::out);
 	
@@ -338,7 +345,8 @@ int main(int argc, char **argv) {
   fout << "##############################################################################################\n";
   fout << "-------------------------------------First Come First Service---------------------------------\n";
   fout << "##############################################################################################\n";
-  double dCost = dumpMemory(g_FcfsMemory, fout);
+  double dCost = dumpMpcMemory(g_FcfsMemory, fout);
+  //double dCost = dumpMpcMemory(g_FcfsMemory, fout);
   std::ofstream CostOut;
   CostOut.setf(std::ios_base::scientific);
   CostOut.open("spm.fcfs", std::ios_base::app);
