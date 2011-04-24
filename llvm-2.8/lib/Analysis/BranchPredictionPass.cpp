@@ -45,6 +45,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Module.h"
 
 using namespace llvm;
 
@@ -103,6 +104,19 @@ bool BranchPredictionPass::runOnFunction(Function &F) {
     // Calculate the likelihood of the successors of this basic block.
     CalculateBranchProbabilities(FI);
 
+	///////////////////qali//////
+	std::string szTemp;	
+	std::string szFreq = F.getParent()->getModuleIdentifier() + ".frequency";	
+	raw_fd_ostream freqFile(szFreq.c_str(), szTemp, raw_fd_ostream::F_Append);
+	freqFile << F.getName() << ":\n";
+	std::map<Edge, double>::iterator e2d_I = EdgeProbabilities.begin(), e2d_E = EdgeProbabilities.end();
+	for(; e2d_I != e2d_E; ++ e2d_I)
+	{
+		freqFile << e2d_I->first.first->getName() << "---" << e2d_I->first.second->getName();
+		freqFile << ":\t\t" << e2d_I->second << "\n";
+	}
+	freqFile.close();
+	//////////////////////////////
   // Delete unnecessary branch heuristic info.
   delete BHI;
   BHI = NULL;
