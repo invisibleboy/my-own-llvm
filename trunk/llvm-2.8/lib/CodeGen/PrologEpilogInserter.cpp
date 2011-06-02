@@ -38,6 +38,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/CodeGen/AccessAnalysis.h"
 #include <climits>
 
 using namespace llvm;
@@ -93,6 +94,10 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
   // before the frame layout is finalized.
   TRI->processFunctionBeforeFrameFinalized(Fn);
 
+	// qali --------------------
+	AccessAnalysis(Fn);	
+	// qali -----------------------
+	
   // Calculate actual frame offsets for all abstract stack objects...
   calculateFrameObjectOffsets(Fn);
 
@@ -611,7 +616,11 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &Fn) {
 
   // Then assign frame offsets to stack objects that are not used to spill
   // callee saved registers.
-  for (unsigned i = 0, e = MFI->getObjectIndexEnd(); i != e; ++i) {
+  // qali --------------
+  PackStack(Fn, Offset,RS, MinCSFrameIndex, MaxCSFrameIndex, LargeStackObjs);
+  // qali --------------------
+  
+  /*for (unsigned i = 0, e = MFI->getObjectIndexEnd(); i != e; ++i) {
     if (MFI->isObjectPreAllocated(i) &&
         MFI->getUseLocalStackAllocationBlock())
       continue;
@@ -627,7 +636,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &Fn) {
       continue;
 
     AdjustStackOffset(MFI, i, StackGrowsDown, Offset, MaxAlign);
-  }
+  }*/
 
   // Make sure the special register scavenging spill slot is closest to the
   // stack pointer.
