@@ -46,6 +46,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Module.h"
+#include "llvm/Analysis/MemoryColoring1.h"
 
 using namespace llvm;
 
@@ -120,6 +121,10 @@ bool BranchPredictionPass::runOnFunction(Function &F) {
   // Delete unnecessary branch heuristic info.
   delete BHI;
   BHI = NULL;
+  
+  ////add_for_memory_coloring
+  
+  ////
 
   return false;
 }

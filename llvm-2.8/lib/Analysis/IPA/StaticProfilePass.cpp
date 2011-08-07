@@ -208,6 +208,9 @@ StaticProfilePass::~StaticProfilePass() {
 void StaticProfilePass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<CallGraph>();
   AU.addRequired<BlockEdgeFrequencyPass>();
+  // add
+  //AU.addRequired<LoopInfo>();
+  //
   AU.setPreservesAll();
 }
 
@@ -254,8 +257,17 @@ bool StaticProfilePass::runOnModule(Module &M) {
   // frequencies to achieve global block and edge frequency.
   CalculateGlobalInfo(M);
 
+	// by qali
 	GetAccess(BlockInformation);
 	GetFuncCall(&M, CG);
+	
+	// for spm
+	// 1. array splitting at loop sites
+	// 2. live analysis 
+	// 3. collect the max-cliques
+	// 4. spill arrays from the cliques larger than the size of SPM
+	// 5. unspill nonsplit arrays into the interference graph
+	//
   return false;
 }
 
