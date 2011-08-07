@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <list>
 #include "llvm/ADT/SmallSet.h"
 using namespace std;
 
@@ -11,9 +12,11 @@ using namespace std;
 #include "llvm/CodeGen/MachineFunction.h"
 using namespace llvm;
 
-#define CASCH_LINE_SIZE	64
+#define CASCH_LINE_SIZE	128
 #define ASSOCIATIVITY	8
+#define NUM_OF_SETS	1024
 #define	CASCH_CAPACITY	(2 << 20)
+#define NOF (-(2<<31))
 
 namespace llvm
 {
@@ -32,9 +35,52 @@ namespace llvm
 		
 	};
 	
-	struct RecordCmp
+	
+	class AccessEdge
+	{
+		public:
+		int pPrev;
+		int pNext;
+		int nRR;
+		int nRW;
+		int nWR;
+		int nWW;
+		double dWeight;
+		
+	public:
+		AccessEdge(int prev, int next)
+		{
+			pPrev = prev;
+			pNext = next;
+			nRR = nRW = nWR = nWW = 0;
+			dWeight = 0.0;
+			
+		}
+	};
+	
+	class CCacheBlock
+	{
+	public:
+		int m_nID;
+		//int m_nLeft;
+		int m_nOffset;
+		std::map<int, int> m_hOff2Obj;
+		
+		CCacheBlock(int nID, int offset) {m_nID = 0; m_nOffset = 0;}
+		
+	};
+	struct EdgeCmp
 	{
 		
+		bool operator () ( AccessEdge *first, AccessEdge *second) 
+		{
+			if( first->dWeight > second->dWeight)
+				return true;
+			return false;
+		}
+	};
+	struct RecordCmp
+	{		
 		bool operator () ( AccessRecord *first, AccessRecord *second) 
 		{
 			if( first->m_dCount < second->m_dCount)
@@ -43,13 +89,20 @@ namespace llvm
 		}
 	};
 	
+	extern std::map<const Function *, std::map<int, std::map<int, AccessEdge *>  > > hAccRecord; // for computing
+	extern std::map<const Function *, std::map<int, std::set<AccessEdge *, EdgeCmp> > > hAccList;   // for storage
+	extern std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
+	
 	extern std::map<const Function *, std::set<AccessRecord *, RecordCmp> > AccessCount; 		// For access frequency
 	
 	extern std::map<Function *, map<int, int64_t> > StackLayout;		// For stack layout
 	
 	bool AccessAnalysis(llvm::MachineFunction &mf);
 	bool PackStack(MachineFunction &mf, int64_t &Offset, RegScavenger *RS, int min, int max, SmallSet<int, 16> &);
-	
+	int CacheAlloc(MachineFunction &mf, std::map<int, CCacheBlock *> &hAlloc, int nOffset, int nPrev);
+	int UpdateGraph(std::map<int, std::map<int, double> > &graph, CCacheBlock *pBlock, int nIndex);
+	int AssignOffset(std::list<CCacheBlock *> &Block_list, int nOffset, MachineFunction &mf, bool StackGrowsDown);
+	int DumpGraph(std::map<int, std::map<int, double> > &graph);
 //}
 
 #endif
