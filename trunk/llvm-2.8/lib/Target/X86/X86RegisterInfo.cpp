@@ -478,11 +478,11 @@ bool X86RegisterInfo::needsStackRealignment(const MachineFunction &MF) const {
   if (0 && requiresRealignment && MFI->hasVarSizedObjects())
     report_fatal_error(
       "Stack realignment in presense of dynamic allocas is not supported");
-    
+
   // If we've requested that we force align the stack do so now.
   if (ForceStackAlign)
     return canRealignStack(MF);
-    
+
   return requiresRealignment && canRealignStack(MF);
 }
 
@@ -587,7 +587,7 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
         // Factor out the amount the callee already popped.
         uint64_t CalleeAmt = Old->getOperand(1).getImm();
         Amount -= CalleeAmt;
-  
+
       if (Amount) {
           unsigned Opc = getADDriOpcode(Is64Bit, Amount);
           New = BuildMI(MF, Old->getDebugLoc(), TII.get(Opc), StackPtr)
@@ -612,7 +612,7 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
       unsigned Opc = getSUBriOpcode(Is64Bit, CalleeAmt);
       MachineInstr *Old = I;
       MachineInstr *New =
-        BuildMI(MF, Old->getDebugLoc(), TII.get(Opc), 
+        BuildMI(MF, Old->getDebugLoc(), TII.get(Opc),
                 StackPtr)
           .addReg(StackPtr)
           .addImm(CalleeAmt);
@@ -874,7 +874,7 @@ void X86RegisterInfo::emitCalleeSavedFrameMoves(MachineFunction &MF,
     // move" for this extra "PUSH", the linker will lose track of the fact that
     // the frame pointer should have the value of the first "PUSH" when it's
     // trying to unwind.
-    // 
+    //
     // FIXME: This looks inelegant. It's possibly correct, but it's covering up
     //        another bug. I.e., one where we generate a prolog like this:
     //
@@ -914,6 +914,41 @@ void X86RegisterInfo::emitPrologue(MachineFunction &MF) const {
   uint64_t StackSize = MFI->getStackSize();    // Number of bytes to allocate.
   bool HasFP = hasFP(MF);
   DebugLoc DL;
+
+    //////////////////////////qali for main stack alignment, after the store of return address and before all others
+    if( Fn->getName() == "main")
+    {
+//        int nFirstArg = MFI->getObjectIndexBegin();
+//        int nArgsSize = 0;
+//        if( nFirstArg < 0)
+//        {
+//            int nArgOffset = -MFI->getObjectOffset(i);
+//            //unsigned Align = MFI->getObjectAlignment(i);
+//            nArgsSize = nArgOffset + MFI->getObjectSize(i);
+//        }
+
+        // ESP -> EAX
+        BuildMI(MBB, MBBI, DL,  TII.get(X86::MOV32rr), X86::EAX)
+        .addReg(StackPtr);
+
+        // ESP - nArgsSize -> ESP
+//        BuildMI(MBB, MBBI, DL,  TII.get(X86::SUB32ri), StackPtr)
+//        .addReg(StackPtr)
+//        .addImm(nArgsSize);
+
+        // ESP & 0xffffffc0 -> ESP
+        BuildMI(MBB, MBBI, DL,  TII.get(X86::AND32ri), StackPtr)
+        .addReg(StackPtr)
+        .addImm(0xffffffc0);
+
+        // copy the arguments
+
+
+        // push eax, for store the old stack pointer into the first four bytes (the second return address) of the new stack
+        BuildMI(MBB, MBBI, DL, TII.get(X86::PUSH32r))
+        .addReg(X86::EAX, RegState::Kill);
+    }
+    ////////////////////////////////////////////
 
   // If we're forcing a stack realignment we can't rely on just the frame
   // info, we need to know the ABI stack alignment as well in case we
@@ -1212,6 +1247,8 @@ void X86RegisterInfo::emitEpilogue(MachineFunction &MF,
   // info, we need to know the ABI stack alignment as well in case we
   // have a call out.  Otherwise just make sure we have some alignment - we'll
   // go with the minimum.
+
+
   if (ForceStackAlign) {
     if (MFI->hasCalls())
       MaxAlign = (StackAlign > MaxAlign) ? StackAlign : MaxAlign;
@@ -1233,6 +1270,14 @@ void X86RegisterInfo::emitEpilogue(MachineFunction &MF,
   } else {
     NumBytes = StackSize - CSSize;
   }
+
+    ////////////////////////qali, for stack alignment, before return, and after all others
+   if( MF.getFunction()->getName() == "main")
+    {
+        // pop esp, for restore the old stack pointer
+        BuildMI(MBB, MBBI, DL, TII.get(X86::POP32r), X86::ESP);
+    }
+    ///////////////////////////////////
 
   // Skip the callee-saved pop instructions.
   MachineBasicBlock::iterator LastCSPop = MBBI;

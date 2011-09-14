@@ -31,6 +31,11 @@
 #include "llvm/System/Path.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include "llvm/ADT/DenseMap.h"
+
+#include <set>
+#include <string>
+
+using namespace std;
 using namespace llvm;
 
 // Error - Simple wrapper function to conditionally assign to E and return true.
@@ -449,7 +454,7 @@ static void LinkNamedMDNodes(Module *Dest, Module *Src,
     const NamedMDNode *SrcNMD = I;
     NamedMDNode *DestNMD = Dest->getOrInsertNamedMetadata(SrcNMD->getName());
     // Add Src elements into Dest node.
-    for (unsigned i = 0, e = SrcNMD->getNumOperands(); i != e; ++i) 
+    for (unsigned i = 0, e = SrcNMD->getNumOperands(); i != e; ++i)
       DestNMD->addOperand(cast<MDNode>(MapValue(SrcNMD->getOperand(i),
                                                 ValueMap,
                                                 true)));
@@ -559,14 +564,14 @@ static bool LinkGlobals(Module *Dest, const Module *Src,
       // we are replacing may be a function (if a prototype, weak, etc) or a
       // global variable.
       GlobalVariable *NewDGV =
-        new GlobalVariable(*Dest, SGV->getType()->getElementType(), 
-                           SGV->isConstant(), NewLinkage, /*init*/0, 
+        new GlobalVariable(*Dest, SGV->getType()->getElementType(),
+                           SGV->isConstant(), NewLinkage, /*init*/0,
                            DGV->getName(), 0, false,
                            SGV->getType()->getAddressSpace());
 
       // Propagate alignment, section, and visibility info.
       CopyGVAttributes(NewDGV, SGV);
-      DGV->replaceAllUsesWith(ConstantExpr::getBitCast(NewDGV, 
+      DGV->replaceAllUsesWith(ConstantExpr::getBitCast(NewDGV,
                                                               DGV->getType()));
 
       // DGV will conflict with NewDGV because they both had the same
@@ -927,7 +932,7 @@ static bool LinkFunctionProtos(Module *Dest, const Module *Src,
       CopyGVAttributes(NewDF, SF);
 
       // Any uses of DF need to change to NewDF, with cast
-      DGV->replaceAllUsesWith(ConstantExpr::getBitCast(NewDF, 
+      DGV->replaceAllUsesWith(ConstantExpr::getBitCast(NewDF,
                                                               DGV->getType()));
 
       // DF will conflict with NewDF because they both had the same. We must
@@ -1016,7 +1021,7 @@ static bool LinkFunctionBody(Function *Dest, Function *Src,
         Value *Old = MI->second;
         if (!isa<Instruction>(Old) && !isa<BasicBlock>(Old)) {
           Value *New = MapValue(Old, ValueMap, true);
-          if (New != Old) 
+          if (New != Old)
             I->setMetadata(MI->first, cast<MDNode>(New));
         }
       }
@@ -1030,7 +1035,7 @@ static bool LinkFunctionBody(Function *Dest, Function *Src,
   return false;
 }
 
-
+std::set<string> UserFunctions;
 // LinkFunctionBodies - Link in the function bodies that are defined in the
 // source module into the DestModule.  This consists basically of copying the
 // function over and fixing up references to values.
@@ -1038,12 +1043,18 @@ static bool LinkFunctionBodies(Module *Dest, Module *Src,
                                ValueToValueMapTy &ValueMap,
                                std::string *Err) {
 
+    // qali
+    for (Module::iterator DF = Dest->begin(), E = Dest->end(); DF != E; ++DF)
+        if (!DF->isDeclaration())
+            UserFunctions.insert(DF->getName() );// Des
+
   // Loop over all of the functions in the src module, mapping them over as we
   // go
   for (Module::iterator SF = Src->begin(), E = Src->end(); SF != E; ++SF) {
     if (!SF->isDeclaration()) {               // No body if function is external
       Function *DF = dyn_cast<Function>(ValueMap[SF]); // Destination function
 
+        UserFunctions.insert(SF->getName());
       // DF not external SF external?
       if (DF && DF->isDeclaration())
         // Only provide the function body if there isn't one already.
@@ -1051,6 +1062,8 @@ static bool LinkFunctionBodies(Module *Dest, Module *Src,
           return true;
     }
   }
+
+
   return false;
 }
 
@@ -1099,7 +1112,7 @@ static bool LinkAppendingVars(Module *M,
          "Appending variables with different section name need to be linked!");
 
       unsigned NewSize = T1->getNumElements() + T2->getNumElements();
-      ArrayType *NewType = ArrayType::get(T1->getElementType(), 
+      ArrayType *NewType = ArrayType::get(T1->getElementType(),
                                                          NewSize);
 
       G1->setName("");   // Clear G1's name in case of a conflict!
@@ -1143,7 +1156,7 @@ static bool LinkAppendingVars(Module *M,
       // getelementptr instructions to not use the Cast!
       G1->replaceAllUsesWith(ConstantExpr::getBitCast(NG,
                              G1->getType()));
-      G2->replaceAllUsesWith(ConstantExpr::getBitCast(NG, 
+      G2->replaceAllUsesWith(ConstantExpr::getBitCast(NG,
                              G2->getType()));
 
       // Remove the two globals from the module now...
