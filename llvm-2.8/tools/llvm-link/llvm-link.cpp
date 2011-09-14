@@ -26,7 +26,12 @@
 #include "llvm/System/Signals.h"
 #include "llvm/System/Path.h"
 #include <memory>
+#include <fstream>
+
+using namespace std;
 using namespace llvm;
+
+extern std::set<string> UserFunctions;
 
 static cl::list<std::string>
 InputFilenames(cl::Positional, cl::OneOrMore,
@@ -53,7 +58,7 @@ DumpAsm("d", cl::desc("Print assembly as linked"), cl::Hidden);
 // searches the link path for the specified file to try to find it...
 //
 static inline std::auto_ptr<Module> LoadFile(const char *argv0,
-                                             const std::string &FN, 
+                                             const std::string &FN,
                                              LLVMContext& Context) {
   sys::Path Filename;
   if (!Filename.set(FN)) {
@@ -64,7 +69,7 @@ static inline std::auto_ptr<Module> LoadFile(const char *argv0,
   SMDiagnostic Err;
   if (Verbose) errs() << "Loading '" << Filename.c_str() << "'\n";
   Module* Result = 0;
-  
+
   const std::string &FNStr = Filename.str();
   Result = ParseIRFile(FNStr, Err, Context);
   if (Result) return std::auto_ptr<Module>(Result);   // Load successful!
@@ -77,7 +82,7 @@ int main(int argc, char **argv) {
   // Print a stack trace if we signal out.
   sys::PrintStackTraceOnErrorSignal();
   PrettyStackTraceProgram X(argc, argv);
-  
+
   LLVMContext &Context = getGlobalContext();
   llvm_shutdown_obj Y;  // Call llvm_shutdown() on exit.
   cl::ParseCommandLineOptions(argc, argv, "llvm linker\n");
@@ -134,6 +139,13 @@ int main(int argc, char **argv) {
   } else if (Force || !CheckBitcodeOutputToConsole(Out.os(), true))
     WriteBitcodeToFile(Composite.get(), Out.os());
 
+    // qali
+    std::ofstream userFile;
+    userFile.open("userfunc", ios::out );
+    std::set<string>::iterator I = UserFunctions.begin(), E = UserFunctions.end();
+    for(; I != E; ++ I)
+        userFile << *I << "\n";
+    userFile.close();
   // Declare success.
   Out.keep();
 
