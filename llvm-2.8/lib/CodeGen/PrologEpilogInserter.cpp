@@ -95,9 +95,9 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
   TRI->processFunctionBeforeFrameFinalized(Fn);
 
 	// qali --------------------
-	AccessAnalysis(Fn);	
+	AccessAnalysis(Fn);
 	// qali -----------------------
-	
+
   // Calculate actual frame offsets for all abstract stack objects...
   calculateFrameObjectOffsets(Fn);
 
@@ -619,7 +619,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &Fn) {
   // qali --------------
   PackStack(Fn, Offset,RS, MinCSFrameIndex, MaxCSFrameIndex, LargeStackObjs);
   // qali --------------------
-  
+
   /*for (unsigned i = 0, e = MFI->getObjectIndexEnd(); i != e; ++i) {
     if (MFI->isObjectPreAllocated(i) &&
         MFI->getUseLocalStackAllocationBlock())
@@ -668,6 +668,8 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &Fn) {
     // If the frame pointer is eliminated, all frame offsets will be relative to
     // SP not FP. Align to MaxAlign so this works.
     StackAlign = std::max(StackAlign, MaxAlign);
+    // add by qali
+    StackAlign = std::max(StackAlign, (unsigned)CASCH_LINE_SIZE);
     unsigned AlignMask = StackAlign - 1;
     Offset = (Offset + AlignMask) & ~uint64_t(AlignMask);
   }

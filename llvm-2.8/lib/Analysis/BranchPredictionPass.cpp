@@ -50,6 +50,8 @@
 
 using namespace llvm;
 
+std::map<const Function *, std::map<const BasicBlock *, std::map<const BasicBlock *, double> > > g_EdgeProbs;
+
 char BranchPredictionPass::ID = 0;
 
 // Registering the pass.
@@ -106,13 +108,15 @@ bool BranchPredictionPass::runOnFunction(Function &F) {
     CalculateBranchProbabilities(FI);
 
 	///////////////////qali//////
-	std::string szTemp;	
-	std::string szFreq = F.getParent()->getModuleIdentifier() + ".frequency";	
+
+	std::string szTemp;
+	std::string szFreq = F.getParent()->getModuleIdentifier() + ".frequency";
 	raw_fd_ostream freqFile(szFreq.c_str(), szTemp, raw_fd_ostream::F_Append);
 	freqFile << F.getName() << ":\n";
 	std::map<Edge, double>::iterator e2d_I = EdgeProbabilities.begin(), e2d_E = EdgeProbabilities.end();
 	for(; e2d_I != e2d_E; ++ e2d_I)
 	{
+	    g_EdgeProbs[&F][e2d_I->first.first][e2d_I->first.second] = e2d_I->second;
 		freqFile << e2d_I->first.first->getName() << "---" << e2d_I->first.second->getName();
 		freqFile << ":\t\t" << e2d_I->second << "\n";
 	}
@@ -121,9 +125,9 @@ bool BranchPredictionPass::runOnFunction(Function &F) {
   // Delete unnecessary branch heuristic info.
   delete BHI;
   BHI = NULL;
-  
+
   ////add_for_memory_coloring
-  
+
   ////
 
   return false;
