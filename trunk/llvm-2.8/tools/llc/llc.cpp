@@ -44,6 +44,11 @@ using namespace SPM;
 // within the corresponding llc passes, and target-specific options
 // and back-end code generation options are specified with the target machine.
 //
+///////////////qali for stack size and PCG////////////
+extern std::map<std::string, int > g_hStackSize;
+extern std::map<std::string, std::set<std::string> > g_hFuncCall;
+void printPCG(ostream &os);
+
 static cl::opt<std::string>
 InputFilename(cl::Positional, cl::desc("<input bitcode>"), cl::init("-"));
 
@@ -206,7 +211,7 @@ int main(int argc, char **argv) {
   InitializeAllAsmParsers();
 
   cl::ParseCommandLineOptions(argc, argv, "llvm system compiler\n");
-  
+
   // Load the module to be compiled...
   SMDiagnostic Err;
   std::auto_ptr<Module> M;
@@ -270,7 +275,7 @@ int main(int argc, char **argv) {
     FeaturesStr = Features.getString();
   }
 
-  std::auto_ptr<TargetMachine> 
+  std::auto_ptr<TargetMachine>
     target(TheTarget->createTargetMachine(TheTriple.getTriple(), FeaturesStr));
   assert(target.get() && "Could not allocate target machine!");
   TargetMachine &Target = *target.get();
@@ -326,21 +331,21 @@ int main(int argc, char **argv) {
   }
 
   // Do spm allocation
-  SpmAllocator spmAllocator;	
+  SpmAllocator spmAllocator;
   spmAllocator.run(&mod);
-  
+
    std::ofstream fout;
   // Dump the function call info
-  std::string fcFile = mod.getModuleIdentifier() + ".fc";
+  std::string fcFile = mod.getModuleIdentifier() + ".dot";
   fout.open(fcFile.c_str());
-  SPM::dumpFunctionCall(fout);
+  printPCG(fout);
   fout.close();
-  // Dump the spm allocation info  
+  // Dump the spm allocation info
   std::string fileName = mod.getModuleIdentifier() + ".spm";
- 
+
   fout.setf(std::ios_base::scientific);
   fout.open(fileName.c_str(), std::ios_base::out);
-	
+
   fout << "number of functions: " << g_nNumOfFuncs << "\t\tnumber of variables: " << g_nNumOfVars << "\t\ttotal var size: " << g_nTotalSize << "\n";
   fout << "##############################################################################################\n";
   fout << "-------------------------------------First Come First Service---------------------------------\n";
@@ -364,4 +369,32 @@ int main(int argc, char **argv) {
   Out->keep();
 
   return 0;
+}
+
+void printPCG(ostream &os)
+{
+    os << "digraph G {\n";
+    // node
+    std::map<std::string, int>::iterator s2i_p = g_hStackSize.begin(), s2i_e = g_hStackSize.end();
+    for(; s2i_p != s2i_e; ++ s2i_p)
+        if( s2i_p->second != 0 )
+            os << s2i_p->first << "[label=\"" << s2i_p->first << ": " << s2i_p->second << "\"]\n";
+
+    // edge
+    std::map<std::string, std::set<std::string> >::iterator f2s_p = g_hFuncCall.begin(), f2s_e = g_hFuncCall.end();
+    for(; f2s_p != f2s_e; ++f2s_p)
+    {
+        if( f2s_p->second.empty() )
+            continue;
+        if(g_hStackSize[f2s_p->first] == 0 )
+            continue;
+
+        std::set<std::string>::iterator f_p = f2s_p->second.begin(), f_e = f2s_p->second.end();
+        for(; f_p != f_e; ++ f_p)
+            if( g_hStackSize[*f_p] != 0 )
+                os << f2s_p->first << " -> " << *f_p << "\n";
+        os << "\n";
+    }
+    os << "}\n";
+
 }
