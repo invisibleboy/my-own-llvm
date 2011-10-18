@@ -38,8 +38,10 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/CodeGen/AccessAnalysis.h"
+#include "llvm/CodeGen/AccessAnalysis2.h"
 #include <climits>
+
+std::map<std::string, int > g_hStackSize;
 
 using namespace llvm;
 
@@ -114,6 +116,8 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
   //
   replaceFrameIndices(Fn);
 
+    ////////by qali for stack size of function////////
+    g_hStackSize[F->getName()] = Fn.getFrameInfo()->getStackSize();
   // If register scavenging is needed, as we've enabled doing it as a
   // post-pass, scavenge the virtual registers that frame index elimiation
   // inserted.
@@ -669,7 +673,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &Fn) {
     // SP not FP. Align to MaxAlign so this works.
     StackAlign = std::max(StackAlign, MaxAlign);
     // add by qali
-    StackAlign = std::max(StackAlign, (unsigned)CASCH_LINE_SIZE);
+    StackAlign = std::max(StackAlign, (unsigned)CACHE_LINE_SIZE);
     unsigned AlignMask = StackAlign - 1;
     Offset = (Offset + AlignMask) & ~uint64_t(AlignMask);
   }
