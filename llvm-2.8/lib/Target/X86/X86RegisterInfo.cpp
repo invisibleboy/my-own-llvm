@@ -936,14 +936,20 @@ void X86RegisterInfo::emitPrologue(MachineFunction &MF) const {
 //        .addReg(StackPtr)
 //        .addImm(nArgsSize);
 
-        // ESP & 0xffffffc0 -> ESP
+        // ESP & 0xffffffc0 -> ESP: 64-aligned
+//        BuildMI(MBB, MBBI, DL,  TII.get(X86::AND32ri), StackPtr)
+//        .addReg(StackPtr)
+//        .addImm(0xffffffc0);
+
+        // 64-aligned
+        // ESP & 0xffffffc0 (ox1000000) -> ESP
         BuildMI(MBB, MBBI, DL,  TII.get(X86::AND32ri), StackPtr)
         .addReg(StackPtr)
         .addImm(0xffffffc0);
 
         // copy the arguments
 
-
+        // EAX -> $ESP (store the orignial ESP as a return address)
         // push eax, for store the old stack pointer into the first four bytes (the second return address) of the new stack
         BuildMI(MBB, MBBI, DL, TII.get(X86::PUSH32r))
         .addReg(X86::EAX, RegState::Kill);
