@@ -45,9 +45,17 @@ END_LEGAL */
 #include <fstream>
 #include <set>
 
-#include "cacheL2.H"
+#include "cacheL1.H"
 #include "pin_profile.H"
 
+UINT32 g_nControlCount1 = 0;
+UINT32 g_nControlCount2 = 0;
+UINT32 g_nControlCount3 = 0;
+
+bool g_bCount1 = false;
+bool g_bCount2 = false;
+bool g_bCount3 = false;
+bool g_bInstrument = false;
 
 /* ===================================================================== */
 /* Commandline Switches */
@@ -88,16 +96,16 @@ INT32 Usage()
 /* Global Variables */
 /* ===================================================================== */
 
-namespace L2        // 3 + 10 + 6 = 19, 512K
-{
-    const UINT32 max_sets = KILO; // cacheSize / (lineSize * associativity);
-    const UINT32 max_associativity = 8; // associativity;
-    const CACHE_ALLOC::STORE_ALLOCATION allocation = CACHE_ALLOC::STORE_ALLOCATE;
+//namespace L2        // 3 + 10 + 6 = 19, 512K
+//{
+//    const UINT32 max_sets = KILO; // cacheSize / (lineSize * associativity);
+//    const UINT32 max_associativity = 8; // associativity;
+//    const CACHE_ALLOC::STORE_ALLOCATION allocation = CACHE_ALLOC::STORE_ALLOCATE;
+//
+//    typedef CACHE<CACHE_SET::ROUND_ROBIN<max_associativity>, max_sets, allocation> CACHE;
+//}
 
-    typedef CACHE<CACHE_SET::ROUND_ROBIN<max_associativity>, max_sets, allocation> CACHE;
-}
-
-namespace IL1        // 3 + 6 + 4, 8k
+namespace IL1        // 1 + 9 + 5, 32k=2^15
 {
     const UINT32 max_sets = KILO; // cacheSize / (lineSize * associativity);
     const UINT32 max_associativity = 8; // associativity;
@@ -108,7 +116,7 @@ namespace IL1        // 3 + 6 + 4, 8k
     typedef CACHE1<CacheSet, max_sets, allocation> CACHE;
 }
 
-namespace DL1        // 2 + 6 + 5, 8k
+namespace DL1        // 1 + 9 + 5, 32k=2^15
 {
     const UINT32 max_sets = KILO; // cacheSize / (lineSize * associativity);
     const UINT32 max_associativity = 8; // associativity;
@@ -124,7 +132,7 @@ namespace DL1        // 2 + 6 + 5, 8k
 
 IL1::CACHE* il1 = NULL;
 DL1::CACHE* dl1 = NULL;
-L2::CACHE* l2 = NULL;
+//L2::CACHE* l2 = NULL;
 
 
 typedef enum
@@ -144,24 +152,14 @@ typedef  COUNTER_ARRAY<UINT64, COUNTER_NUM> COUNTER_HIT_MISS;
 // conceptually this is an array indexed by instruction address
 COMPRESSOR_COUNTER<ADDRINT, UINT32, COUNTER_HIT_MISS> profile;
 
-set<ADDRINT> tmpIns;
+
 /* ===================================================================== */
 
 //VOID LoadMulti(ADDRINT addr, UINT32 size, UINT32 instId, void * pInst, BOOL bStack, BOOL bMain)
 VOID LoadMulti(ADDRINT addr, UINT32 size, bool bUser)
 {
-//    string szIns = (const char *)szFunc;
-////    if( bMain)
-//    {
-//        if( bStack)
-//            cout << "----Stack:";
-//        else if( addr < g_nHeapBegin )
-//            cout << "----Global:";
-//        else
-//            cout << "----Heap:";
-//        cout << instId << ":load multi:\t" << szIns << "----0x" << hex << addr << dec << endl;
-//    }
-
+    if( !g_bInstrument )
+        return;
     //assert("Load multiple" && false);
     // first level D-cache
     dl1->Access(addr, size, CACHE_BASE1::ACCESS_TYPE_LOAD, bUser, true);
@@ -175,17 +173,8 @@ VOID LoadMulti(ADDRINT addr, UINT32 size, bool bUser)
 //VOID StoreMulti(ADDRINT addr, UINT32 size, UINT32 instId, void * pInst, BOOL bStack, BOOL bMain)
 VOID StoreMulti(ADDRINT addr, UINT32 size, bool bUser)
 {
-   // string szIns = (const char *)szFunc;
-////    if( bMain)
-//    {
-//        if( bStack)
-//            cout << "----Stack:";
-//        else if( addr < g_nHeapBegin )
-//            cout << "----Global:";
-//        else
-//            cout << "----Heap";
-//        cout << instId << ":store multi:\t" << szIns << "----0x" << hex << addr << dec << endl;
-//    }
+    if( !g_bInstrument )
+        return;
 
     //assert("Store multiple" && false);
     // first level D-cache
@@ -199,23 +188,15 @@ VOID StoreMulti(ADDRINT addr, UINT32 size, bool bUser)
 
 VOID LoadInstruction(ADDRINT addr, bool bUser)
 {
+    if( !g_bInstrument )
+        return;
     il1->AccessSingleLine(addr, CACHE_BASE1::ACCESS_TYPE_LOAD, bUser, false);
 }
 //VOID LoadSingle(ADDRINT addr, UINT32 instId, void * pInst, BOOL bStack, BOOL bMain)
 VOID LoadSingle(ADDRINT addr, bool bUser)
 {
-//    string szIns = (const char *)szFunc;
-    //if( bUser)
-//    {
-//        if( bStack)
-//            cout << "----Stack:";
-//        else if( addr < g_nHeapBegin )
-//            cout << "----Global:";
-//        else
-//            cout << "----Heap";
-//        cout << instId << ":load single:\t" << szIns << "----0x" << hex << addr << dec << endl;
-//        cout <<"##Address:\t" << (addr >> 6) << "\n";
-//    }
+    if( !g_bInstrument )
+        return;
 //    ADDRINT tag = addr >> 6;
 //    if( g_hShift[tag] > 5000 && tmpIns.find(iAddr) == tmpIns.end() )
 //    {
@@ -233,18 +214,8 @@ VOID LoadSingle(ADDRINT addr, bool bUser)
 //VOID StoreSingle(ADDRINT addr, UINT32 instId, void * pInst, BOOL bStack, BOOL bMain)
 VOID StoreSingle(ADDRINT addr, bool bUser)
 {
-//    string szIns = (const char *)szFunc;
-    //if( bUser)
-//    {
-//        if( bStack)
-//            cout << "----Stack:";
-//        else if( addr < g_nHeapBegin )
-//            cout << "----Global:";
-//        else
-//            cout << "----Heap";
-//        cout << instId << ":store single:\t" << szIns << "----0x" << hex << addr << dec << endl;
-//        cout <<"##Address:\t" << (addr >> 6) << "\n";
-//    }
+    if( !g_bInstrument )
+        return;
 
     // @todo we may access several cache lines for
     // first level D-cache
@@ -256,143 +227,100 @@ VOID StoreSingle(ADDRINT addr, bool bUser)
 
 /* ===================================================================== */
 
-VOID LoadMultiFast(ADDRINT addr, UINT32 size)
+VOID DoCount1()
 {
-    //dl1->Access(addr, size, CACHE_BASE::ACCESS_TYPE_LOAD, true);
+    if( g_bCount1 )
+        ++ g_nControlCount1;
+    else if( g_bCount2 )
+        ++ g_nControlCount2;
+    else if( g_bCount3)
+        ++ g_nControlCount3;
 }
 
-/* ===================================================================== */
-
-VOID StoreMultiFast(ADDRINT addr, UINT32 size)
+VOID DoCount2()
 {
-    //dl1->Access(addr, size, CACHE_BASE::ACCESS_TYPE_STORE, true);
+    ++ g_nControlCount2;
+}
+VOID DoCount3()
+{
+    ++ g_nControlCount3;
 }
 
-/* ===================================================================== */
-
-VOID LoadSingleFast(ADDRINT addr)
+VOID CloseCount1()
 {
-    //dl1->AccessSingleLine(addr, CACHE_BASE::ACCESS_TYPE_LOAD, true);
+    g_bCount1 = false;
+}
+VOID CloseCount2()
+{
+    g_bCount2 = false;
+}
+VOID CloseCount3()
+{
+    g_bCount3 = false;
 }
 
-/* ===================================================================== */
-
-VOID StoreSingleFast(ADDRINT addr)
+VOID OpenCount1()
 {
-    //dl1->AccessSingleLine(addr, CACHE_BASE::ACCESS_TYPE_STORE, true);
+    g_bCount1 = true;
+}
+VOID OpenCount2()
+{
+    g_bCount2 = true;
+}
+VOID OpenCount3()
+{
+    g_bCount3 = true;
 }
 
-
-VOID Image(IMG img, VOID *v)
+VOID OpenInstrument()
 {
-    RTN mainRtn = RTN_FindByName(img, "main");
-    if( RTN_Valid(mainRtn))
-    {
-        g_nHeapBegin = IMG_HighAddress(img);
-        //cout << "<<<<<<<<<<<<<Begin of Heap address:\t" << g_nHeapBegin << ">>>>>>>>>>>>>>\n";
-    }
+    g_bInstrument = true;
 }
 
-/* ===================================================================== */
-
-VOID Instruction(INS ins, void * v)
+VOID CloseInstrument()
 {
-    //string szIns = "";
-//    bool bMain = false;
-     const ADDRINT iaddr = INS_Address(ins);
-    // const UINT32 instId = profile.Map(iaddr);
-     //string szIns = INS_Disassemble(ins);
-////     bool bMain = false;
-    // RTN rtn = INS_Rtn(ins);
-    // string szFunc = "";
-////     bool bUser = false;
-     //if( RTN_Valid(rtn) )
-   //  {
-     //    szFunc = RTN_Name(rtn);
-////        if( g_userFuncs.find(szFunc) != g_userFuncs.end())
-////            bUser = true;
-         //if( szFunc == "main")
-//         {
-           //  cout << instId << ":" << szIns << "###\n";
-////             //cout << szFunc << endl;
-//////             bMain = true;
-//////
-//             SEC sec = RTN_Sec(rtn);
-//             IMG img = SEC_Img(sec);
-//             g_nHeapBegin = IMG_HighAddress(img);
-//             cout << "<<<<<<<<<<<<<Begin of Heap address:\t" << g_nHeapBegin << ">>>>>>>>>>>>>>\n";
-//         }
-//////         cout << IMG_Name(img) << hex << "(" << IMG_LowAddress(img) << "," << IMG_HighAddress(img) <<dec << ")::" << SEC_Name(sec) << "::" << szFunc << endl;
-    // }
+    g_bInstrument = false;
+}
 
-    INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE, (AFUNPTR) LoadInstruction,
-                    IARG_UINT32, iaddr,
-                    IARG_BOOL, true,
-                    IARG_END);
-
+VOID INSData(INS ins)
+{
     if (INS_IsMemoryRead(ins))
     {
         RTN rtn = INS_Rtn(ins);
         string szFunc = "";
         bool bUser = false;
-        if( RTN_Valid(rtn) )
-        {
-            szFunc = RTN_Name(rtn);
-           if( g_userFuncs.find(szFunc) != g_userFuncs.end())
-               bUser = true;
-        }
+//        if( RTN_Valid(rtn) )
+//        {
+//            szFunc = RTN_Name(rtn);
+//           if( g_userFuncs.find(szFunc) != g_userFuncs.end())
+//               bUser = true;
+//        }
 
         const UINT32 size = INS_MemoryReadSize(ins);
         const BOOL   single = (size <= 4);
 
-        //const BOOL bStack = INS_IsStackRead(ins)? true: false;
-
-        if( KnobTrackLoads )
+        if( single )
         {
-            if( single )
-            {
-                INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE, (AFUNPTR) LoadSingle,
-                    IARG_MEMORYREAD_EA,
-   //                 IARG_UINT32, iaddr,
-                    IARG_BOOL, bUser,
+            INS_InsertPredicatedCall(
+                ins, IPOINT_BEFORE, (AFUNPTR) LoadSingle,
+                IARG_MEMORYREAD_EA,
+//                 IARG_UINT32, iaddr,
+                IARG_BOOL, bUser,
 //                    IARG_BOOL, bStack,
-                    //IARG_BOOL, bMain,
-                    IARG_END);
-            }
-            else
-            {
-                INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE,  (AFUNPTR) LoadMulti,
-                    IARG_MEMORYREAD_EA,
-                    IARG_MEMORYREAD_SIZE,
-      //              IARG_UINT32, iaddr,
-                    IARG_BOOL, bUser,
-//                    IARG_BOOL, bStack,
-//                    IARG_BOOL, bMain,
-                    IARG_END);
-            }
-
+                //IARG_BOOL, bMain,
+                IARG_END);
         }
         else
         {
-            if( single )
-            {
-                INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE,  (AFUNPTR) LoadSingleFast,
-                    IARG_MEMORYREAD_EA,
-                    IARG_END);
-
-            }
-            else
-            {
-                INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE,  (AFUNPTR) LoadMultiFast,
-                    IARG_MEMORYREAD_EA,
-                    IARG_MEMORYREAD_SIZE,
-                    IARG_END);
-            }
+            INS_InsertPredicatedCall(
+                ins, IPOINT_BEFORE,  (AFUNPTR) LoadMulti,
+                IARG_MEMORYREAD_EA,
+                IARG_MEMORYREAD_SIZE,
+  //              IARG_UINT32, iaddr,
+                IARG_BOOL, bUser,
+//                    IARG_BOOL, bStack,
+//                    IARG_BOOL, bMain,
+                IARG_END);
         }
     }
 
@@ -412,55 +340,104 @@ VOID Instruction(INS ins, void * v)
 
         const BOOL   single = (size <= 4);
 
-        //const BOOL bStack = INS_IsStackWrite(ins)? true: false;
 
-        if( KnobTrackStores )
+        if( single )
         {
-            if( single )
-            {
-                INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE,  (AFUNPTR) StoreSingle,
-                    IARG_MEMORYWRITE_EA,
-         //           IARG_UINT32, iaddr,
-                    IARG_BOOL, bUser,
+            INS_InsertPredicatedCall(
+                ins, IPOINT_BEFORE,  (AFUNPTR) StoreSingle,
+                IARG_MEMORYWRITE_EA,
+     //           IARG_UINT32, iaddr,
+                IARG_BOOL, bUser,
 //                    IARG_BOOL, bStack,
 //                    IARG_BOOL, bMain,
-                    IARG_END);
-            }
-            else
-            {
-                INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE,  (AFUNPTR) StoreMulti,
-                    IARG_MEMORYWRITE_EA,
-                    IARG_MEMORYWRITE_SIZE,
-        //            IARG_UINT32, iaddr,
-                    IARG_BOOL, bUser,
-//                    IARG_BOOL, bStack,
-//                    IARG_BOOL, bMain,
-                    IARG_END);
-            }
-
+                IARG_END);
         }
         else
         {
-            if( single )
-            {
-                INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE,  (AFUNPTR) StoreSingleFast,
-                    IARG_MEMORYWRITE_EA,
-                    IARG_END);
-
-            }
-            else
-            {
-                INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE,  (AFUNPTR) StoreMultiFast,
-                    IARG_MEMORYWRITE_EA,
-                    IARG_MEMORYWRITE_SIZE,
-                    IARG_END);
-            }
+            INS_InsertPredicatedCall(
+                ins, IPOINT_BEFORE,  (AFUNPTR) StoreMulti,
+                IARG_MEMORYWRITE_EA,
+                IARG_MEMORYWRITE_SIZE,
+    //            IARG_UINT32, iaddr,
+                IARG_BOOL, bUser,
+//                    IARG_BOOL, bStack,
+//                    IARG_BOOL, bMain,
+                IARG_END);
         }
 
+    }
+}
+
+
+/* ===================================================================== */
+
+
+VOID Image(IMG img, VOID *v)
+{
+    bool bMain = false;
+    for( SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec))
+    {
+        for( RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn) )
+        {
+
+
+            string szFunc = "";
+            if( RTN_Valid(rtn) )
+            {
+                szFunc = RTN_Name(rtn);
+                if( szFunc == "main")
+                {
+                    g_nHeapBegin = IMG_HighAddress(img);
+                    bMain = true;
+                }
+            }
+
+
+
+            RTN_Open(rtn);
+            if( szFunc == "main_1")
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OpenCount1, IARG_END);
+            else if( szFunc == "main_2")
+            {
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)CloseCount1, IARG_END);
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OpenCount2, IARG_END);
+
+            }
+            else if( szFunc == "main_3")
+            {
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)CloseCount2, IARG_END);
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)DoCount3, IARG_END);
+            }
+            else if( szFunc == "endmain")
+            {
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)CloseCount3, IARG_END);
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)CloseInstrument, IARG_END);
+            }
+            else if(szFunc == "main")
+            {
+                RTN_InsertCall(rtn, IPOINT_BEFORE, (AFUNPTR)OpenInstrument, IARG_END);
+            }
+
+
+            for( INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins) )
+            {
+                // collect info about memory access
+                INSData(ins);
+
+                // info about instruction address
+                const ADDRINT iaddr = INS_Address(ins);
+                INS_InsertPredicatedCall(
+                ins, IPOINT_BEFORE, (AFUNPTR) LoadInstruction,
+                IARG_UINT32, iaddr,
+                IARG_BOOL, true,
+                IARG_END);
+
+                // info about instruction count
+                INS_InsertPredicatedCall( ins, IPOINT_BEFORE,  (AFUNPTR) DoCount1, IARG_END );
+
+            }
+           RTN_Close(rtn);
+        }
     }
 }
 
@@ -477,9 +454,22 @@ VOID Fini(int code, VOID * v)
     out << "PIN:MEMLATENCIES 1.0. 0x0\n";
 
     out << "#\n"
+    "# ICACHE L1 stats\n"
+    "#\n";
+    out << "Cache Size:\t" << il1->CacheSize() << "\n";
+    out << "Line Size:\t" << il1->LineSize() << "\n";
+    out << "Associativity:\t" << il1->Associativity() << "\n";
+    out << "#\n";
+    out << il1->StatsLong("# ", CACHE_BASE1::CACHE_TYPE_ICACHE);
+
+    out << "\n\n";
+
+
+
+    out << "#\n"
         "# DCACHE L1 stats\n"
         "#\n";
-    out << "Cache Size:\t" << dl1->CacheSize() << "\n";
+    out << "Cache Size (B):\t" << dl1->CacheSize() << "\n";
     out << "Line Size:\t" << dl1->LineSize() << "\n";
     out << "Associativity:\t" << dl1->Associativity() << "\n";
     out << "#\n";
@@ -487,17 +477,22 @@ VOID Fini(int code, VOID * v)
 
     out << "\n\n";
 
+    out << "##########instruction counter###############\n";
+    out << "main_1:\t" << g_nControlCount1 << "\n";
+    out << "main_2:\t" << g_nControlCount2 << "\n";
+    out << "main_3:\t" << g_nControlCount3 << "\n";
 
-    out <<
-        "#\n"
-        "# Unified L2 stats\n"
-        "#\n";
-    out << "#\n";
-    out << "# Cache Size:\t" << KnobCacheSize.Value() * KILO << "\n";
-    out << "# Line Size:\t" << KnobLineSize.Value() << "\n";
-    out << "# Associativity:\t" << KnobAssociativity.Value() << "\n";
-    out << "#\n";
-    out << l2->Dump("# ", CACHE_BASE1::CACHE_TYPE_DCACHE);
+
+//    out <<
+//        "#\n"
+//        "# Unified L2 stats\n"
+//        "#\n";
+//    out << "#\n";
+//    out << "# Cache Size:\t" << KnobCacheSize.Value() * KILO << "\n";
+//    out << "# Line Size:\t" << KnobLineSize.Value() << "\n";
+//    out << "# Associativity:\t" << KnobAssociativity.Value() << "\n";
+//    out << "#\n";
+//    out << l2->Dump("# ", CACHE_BASE1::CACHE_TYPE_DCACHE);
 
 //    if( KnobTrackLoads || KnobTrackStores ) {
 //        out <<
@@ -523,12 +518,12 @@ int main(int argc, char *argv[])
         return Usage();
     }
 
-    il1 = new IL1::CACHE("L1 Inst Cache", 16 * KILO, 32, 8);
-    dl1 = new DL1::CACHE("L1 Data Cache", 16 * KILO, 64, 8);
-    l2 = new L2::CACHE("L2 cache", 512 * KILO, 64, 8);
+    il1 = new IL1::CACHE("L1 Inst Cache", KnobCacheSize, KnobLineSize,KnobAssociativity);
+    dl1 = new DL1::CACHE("L1 Data Cache", KnobCacheSize, KnobLineSize,KnobAssociativity);
+    //l2 = new L2::CACHE("L2 cache", 512 * KILO, 64, 8);
 
-    il1->SetNextLevel(l2);
-    dl1->SetNextLevel(l2);
+    //il1->SetNextLevel(l2);
+    //dl1->SetNextLevel(l2);
 
     profile.SetKeyName("iaddr          ");
     profile.SetCounterName("dcache:miss        dcache:hit");
@@ -541,20 +536,8 @@ int main(int argc, char *argv[])
     profile.SetThreshold( threshold );
 
     IMG_AddInstrumentFunction(Image, 0);
-    INS_AddInstrumentFunction(Instruction, 0);
     PIN_AddFiniFunction(Fini, 0);
 
-    ifstream infile;
-    infile.open("userfunc", ifstream::in);
-    string szFunc;
-    while(infile.good())
-    {
-        infile >> szFunc;
-        if( !szFunc.empty())
-            g_userFuncs.insert(szFunc);
-    }
-    infile.close();
-    // Never returns
 
     PIN_StartProgram();
 

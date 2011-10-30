@@ -46,6 +46,10 @@ typedef UINT64 CACHE_STATS; // type of cache hit/miss counters
 #include <list>
 #include <assert.h>
 
+#define KILO 1024
+#define MEGA (KILO*KILO)
+#define GIGA (KILO*MEGA)
+
 /*! RMR (rodric@gmail.com)
  *   - temporary work around because decstr()
  *     casts 64 bit ints to 32 bit ones
@@ -138,7 +142,7 @@ class DIRECT_MAPPED
 };
 
 /*!
- *  @brief Cache set with round robin replacement
+ *  @brief Cache set with last-recent-used replacement
  */
 template <UINT32 MAX_ASSOCIATIVITY = 4>
 class LRU_CACHE_SET
@@ -149,6 +153,7 @@ class LRU_CACHE_SET
     UINT32 _nextReplaceIndex;
 
     bool _bDirty[MAX_ASSOCIATIVITY];
+    bool _bValid[MAX_ASSOCIATIVITY];
 
 	public:
 	std::list<UINT32> _tagsLRU;         // LRU list
@@ -184,7 +189,7 @@ class LRU_CACHE_SET
         {
             // this is an ugly micro-optimization, but it does cause a
             // tighter assembly loop for ARM that way ...
-            if(_tags[index] == tag)
+            if(_tags[index] == tag)                         // todo: considering valid-bit
 			{
 				lineIndex = index;
 				goto end;
@@ -197,7 +202,7 @@ class LRU_CACHE_SET
 
 	void HitLRU(UINT32 lineIndex, bool bWrite)
     {
-        if( _tagsLRU.back() == lineIndex )
+        if( _tagsLRU.back() == lineIndex )                // from back to front ==> from most recent to least recent
             return;
 
         std::list<UINT32>::iterator I = _tagsLRU.begin(), E = _tagsLRU.end();
@@ -439,7 +444,7 @@ bool CACHE1<SET,MAX_SETS,STORE_ALLOCATION>::AccessSingleLine(ADDRINT addr, ACCES
     bool hit = set.Find(tag, lineIndex);
 
     //assert(STORE_ALLOCATION == CACHE_ALLOC::STORE_NO_ALLOCATE);
-    // on miss, loads always allocate, stores optionally
+    // on hit, only hit the LRU
 	if( hit )
 	{
 		set.HitLRU( lineIndex, accessType == ACCESS_TYPE_LOAD? false: true);
@@ -450,7 +455,9 @@ bool CACHE1<SET,MAX_SETS,STORE_ALLOCATION>::AccessSingleLine(ADDRINT addr, ACCES
 //                m_pNextCache->AccessSingleLine(addr, accessType, bUser, bData);
 //		}
 	}
-    // miss, in write-allocation mode and read-allocation (ie. no read through), just load the block from the next level cache, and then access the
+	// on miss, loads always allocate, stores optionally
+    // on miss, in write-allocation mode and read-allocation (ie. no read through),
+    // just load the block from the next level cache, and then access the current level cache
 	else if (  (accessType == ACCESS_TYPE_LOAD || STORE_ALLOCATION == CACHE_ALLOC::STORE_ALLOCATE))
     {
         // if necessary for a copy-back
@@ -467,7 +474,7 @@ bool CACHE1<SET,MAX_SETS,STORE_ALLOCATION>::AccessSingleLine(ADDRINT addr, ACCES
 		if( m_pNextCache)
 			m_pNextCache->AccessSingleLine(addr, ACCESS_TYPE_LOAD, bUser, bData);
     }
-	// write miss, in non-write-allocation, write into lower memory directly
+	// write miss and in non-write-allocation, write into lower memory directly
 	else
 	{
 		if( m_pNextCache)
