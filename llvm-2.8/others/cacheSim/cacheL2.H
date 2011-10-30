@@ -413,21 +413,21 @@ private:
     string Dump(string prefix, CACHE_TYPE cache_type);
     string StatsLong(string prefix, CACHE_TYPE cache_type) const;
 
-    LOCATION_TYPE LocationType(const ADDRINT addr, bool bStack)
-    {
-        if (addr < g_nHeapBegin)
-        {
-            return LOC_GLOBAL;
-        }
-        if( addr > (2952790016Lu) )  // assuming the stack size is limited by 256M
-        {
-            if( addr > (3221225472Lu) )
-                cout << "\nError: address " << addr << " is out of range!\n";
-            return LOC_STACK;
-        }
-        else
-            return LOC_HEAP;
-    }
+//    LOCATION_TYPE LocationType(const ADDRINT addr, bool bStack)
+//    {
+//        if (addr < g_nHeapBegin)
+//        {
+//            return LOC_GLOBAL;
+//        }
+//        if( addr > (2952790016Lu) )  // assuming the stack size is limited by 256M
+//        {
+//            if( addr > (3221225472Lu) )
+//                cout << "\nError: address " << addr << " is out of range!\n";
+//            return LOC_STACK;
+//        }
+//        else
+//            return LOC_HEAP;
+//    }
 };
 
 
@@ -491,10 +491,10 @@ bool CACHE<SET,MAX_SETS,STORE_ALLOCATION>::AccessSingleLine(ADDRINT addr, ACCESS
 //    }
 
 
-    LOCATION_TYPE locType = LocationType(addr, bUser);
-
-    if( bData)
-        g_TagSet[locType].insert(tag);
+//    LOCATION_TYPE locType = LocationType(addr, bUser);
+//
+//    if( bData)
+//        g_TagSet[locType].insert(tag);
 
     UINT32 lineIndex = 0;
     bool hit = set.Find(tag, lineIndex);
