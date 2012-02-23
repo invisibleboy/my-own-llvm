@@ -918,41 +918,17 @@ void X86RegisterInfo::emitPrologue(MachineFunction &MF) const {
     //////////////////////////qali for main stack alignment, after the store of return address and before all others
     if( Fn->getName() == "main")
     {
-//        int nFirstArg = MFI->getObjectIndexBegin();
-//        int nArgsSize = 0;
-//        if( nFirstArg < 0)
-//        {
-//            int nArgOffset = -MFI->getObjectOffset(i);
-//            //unsigned Align = MFI->getObjectAlignment(i);
-//            nArgsSize = nArgOffset + MFI->getObjectSize(i);
-//        }
+        // 1. ESP -> EAX
+         BuildMI(MBB, MBBI, DL,  TII.get(X86::MOV32rr), X86::EAX).addReg(StackPtr);        
 
-        // ESP -> EAX
-        BuildMI(MBB, MBBI, DL,  TII.get(X86::MOV32rr), X86::EAX)
-        .addReg(StackPtr);
-
-        // ESP - nArgsSize -> ESP
-//        BuildMI(MBB, MBBI, DL,  TII.get(X86::SUB32ri), StackPtr)
-//        .addReg(StackPtr)
-//        .addImm(nArgsSize);
-
-        // ESP & 0xffffffc0 -> ESP: 64-aligned
-//        BuildMI(MBB, MBBI, DL,  TII.get(X86::AND32ri), StackPtr)
-//        .addReg(StackPtr)
-//        .addImm(0xffffffc0);
-
-        // 64-aligned
+        // 2. 64-aligned
         // ESP & 0xffffffc0 (ox1000000) -> ESP
-        BuildMI(MBB, MBBI, DL,  TII.get(X86::AND32ri), StackPtr)
-        .addReg(StackPtr)
-        .addImm(0xffffffc0);
+        BuildMI(MBB, MBBI, DL,  TII.get(X86::AND32ri), StackPtr).addReg(StackPtr).addImm(0xffffffc0);
 
         // copy the arguments
-
-        // EAX -> $ESP (store the orignial ESP as a return address)
+        // 3. EAX -> $ESP (store the orignial ESP as a return address)
         // push eax, for store the old stack pointer into the first four bytes (the second return address) of the new stack
-        BuildMI(MBB, MBBI, DL, TII.get(X86::PUSH32r))
-        .addReg(X86::EAX, RegState::Kill);
+        BuildMI(MBB, MBBI, DL, TII.get(X86::PUSH32r)).addReg(X86::EAX, RegState::Kill);
     }
     ////////////////////////////////////////////
 

@@ -621,7 +621,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &Fn) {
   // Then assign frame offsets to stack objects that are not used to spill
   // callee saved registers.
   // qali --------------
-  PackStack(Fn, Offset,RS, MinCSFrameIndex, MaxCSFrameIndex, LargeStackObjs);
+   PackStack(Fn, Offset,RS, MinCSFrameIndex, MaxCSFrameIndex, LargeStackObjs);
   // qali --------------------
 
   /*for (unsigned i = 0, e = MFI->getObjectIndexEnd(); i != e; ++i) {
