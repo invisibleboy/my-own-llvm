@@ -1,0 +1,11 @@
+1. PrologEpilogInserter.cpp:
+99: data proximity analysis
+624: stack layouting
+675: align stack size with cache line size
+
+2. X86RegisterInfo.cpp:
+919: align the stack base address of main function with cache line size
+1257: restore from the stack base alignment
+
+3. AccessAnalysis2.h:
+15: define cache_line_size

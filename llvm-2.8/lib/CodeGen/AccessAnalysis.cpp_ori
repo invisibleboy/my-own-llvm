@@ -11,13 +11,43 @@
 #include "llvm/Target/TargetRegisterInfo.h"
 #include "llvm/Target/TargetFrameInfo.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
-#include "llvm/CodeGen/AccessAnalysis2.h"
+#include "llvm/CodeGen/AccessAnalysis.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
 
 extern std::map<std::string, std::set<std::string> > g_hFuncCall;
 extern const std::map<const Function *, std::map<const BasicBlock *, double> > *g_hF2B2Acc;
 extern std::map<const Function *, std::map<const BasicBlock *, std::map<const BasicBlock *, double> > > g_EdgeProbs;
+
+static bool InstructionStoresToFI(const MachineInstr *MI, int FI) {
+  for (MachineInstr::mmo_iterator o = MI->memoperands_begin(),
+         oe = MI->memoperands_end(); o != oe; ++o) {
+    if (!(*o)->isStore() || !(*o)->getValue())
+      continue;
+	const FixedStackPseudoSourceValue *Value = dyn_cast<const FixedStackPseudoSourceValue>((*o)->getValue());
+    if (Value)
+	{
+      if (Value->getFrameIndex() == FI)
+        return true;
+    }
+  }
+  return false;
+}
+
+static bool InstructionLoadFromFI(const MachineInstr *MI, int FI) {
+  for (MachineInstr::mmo_iterator o = MI->memoperands_begin(),
+         oe = MI->memoperands_end(); o != oe; ++o) {
+    if (!(*o)->isLoad() || !(*o)->getValue())
+      continue;
+	const FixedStackPseudoSourceValue *Value = dyn_cast<const FixedStackPseudoSourceValue>((*o)->getValue());
+    if (Value)
+	{
+      if (Value->getFrameIndex() == FI)
+        return true;
+    }
+  }
+  return false;
+}
 
 std::map<const Function *, std::set<AccessRecord *, RecordCmp> > AccessCount; 		// For access frequency
 std::map<Function *, map<int, int64_t> > StackLayout;		// For stack layout
@@ -74,7 +104,7 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
                         bRead = false;
                         if( i != 0 )
                             bRead = true;
-                        DEBUG(dbgs() << "#####" << bRead << "####" << dFactor << ":\t" << FI << "\n" );
+                        DEBUG(dbgs() << "#####" << bRead << "####:\t" << FI << "\n" );
                         if( bFirst )
                         {
                             hBasicFirst[BBI] = (pair<int, bool>(FI, bRead));
@@ -143,7 +173,6 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 		set<int> Objects;
 		DEBUG(errs() << "<<<<<<<Begin " << mf.getFunction()->getName() << ">>>>>>" );
 		DEBUG(errs() << min <<"---" << max << "\n");
-		int estStackSize = 0;
 		// search the stack objects needing allocation
 		 for (unsigned i = 0, e = MFI->getObjectIndexEnd(); i != e; ++i)
 		 {
@@ -160,55 +189,49 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 			// qali
 			if (LargeStackObjs.count(i))
 			  continue;
-            estStackSize += MFI->getObjectSize(i);
 			Objects.insert(i);
 		 }
 
-		 // Get the concerned edges and objects, namely, those contained in the graph
+		 // Get the concerned edges and objects
 		const Function *fn = mf.getFunction();
 		std::map<int, std::map<int, AccessEdge *> > &fAccRecord = hAccRecord[fn];
 		std::map<int, std::map<int, double> > &fGraph = hWeightGraph[fn];
 		std::map<int, std::map<int, AccessEdge *> >::iterator acc_p = fAccRecord.begin(), acc_e = fAccRecord.end();
 		std::set<int> allocated;
 		std::set<int> sorted;
-		int nStackSize = 0;
 		for(; acc_p != acc_e; ++ acc_p )
 		{
-			if( Objects.find(acc_p->first) == Objects.end() )      // remove unconcerned objects
+			if( Objects.find(acc_p->first) == Objects.end() )      // only consider concerned objects
 			{
 			    allocated.insert(acc_p->first);
 			    continue;
 			}
-			if(  MFI->getObjectSize(acc_p->first) > CACHE_LINE_SIZE)
+			if(  MFI->getObjectSize(acc_p->first) > CASCH_LINE_SIZE)
 			{
 			    allocated.insert(acc_p->first);
 			    continue;
 			}
-
-            nStackSize += MFI->getObjectSize(acc_p->first);
 
 			/*std::map<int, AccessEdge *>::iterator i2d_p = acc_p->second.begin(), i2d_e = acc_p->second.end();
 			for( ; i2d_p != i2d_e; ++ i2d_p)*/
 			std::map<int, std::map<int, AccessEdge *> >::iterator acc1_p = fAccRecord.begin(), acc1_e = fAccRecord.end();
 			for(; acc1_p != acc1_e; ++ acc1_p )
 			{
-                if( Objects.find(acc1_p->first) == Objects.end() )        // remove unconcerned edges
+                if( Objects.find(acc1_p->first) == Objects.end() )        // only consider concerned edges
                 {
                     allocated.insert(acc1_p->first);
                     continue;
                 }
-                if(  MFI->getObjectSize(acc1_p->first) > CACHE_LINE_SIZE)
+                if(  MFI->getObjectSize(acc1_p->first) > CASCH_LINE_SIZE)
                 {
                     allocated.insert(acc1_p->first);
                     continue;
                 }
-
                 if( acc_p->second.find(acc1_p->first) == acc_p->second.end())
                     fGraph[acc_p->first][acc1_p->first] = fGraph[acc1_p->first][acc_p->first] = 0;
                 else
                 {
                     AccessEdge *pEdge = fAccRecord[acc_p->first][acc1_p->first];
-                    assert(pEdge);
                     if( pEdge == NULL )
                         continue;
                     // compute the edge weight
@@ -218,119 +241,146 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
                 }
 			}
 		}
+		int nTotal = fGraph.size();
 		DumpGraph(fGraph);
 
-        // Only the intersection of Objects (which is allocable) and fAccRecord (which is collected) are in fGraph
-        // Now, begin the allocation process
-        int nBlock = 0;
-		std::list<CCacheBlock *> Block_list;
+		 map<int, CCacheBlock *> hAlloc;
+		 list<CCacheBlock *> Block_list;
         std::map<int, std::set<int> > removedEdge;
-        std::map<int, CCacheBlock *> hBlocks;     // mapping from data object to the block holding it
-        std::set<int> headVertice;
-        int nBlocks = nStackSize/CACHE_LINE_SIZE;
-        if( nBlocks < 1)
-            nBlocks = 1;
-        // 1. initialize the block list, initialize the first block's offset
-        for(int i = 0; i < nBlocks; ++ i)
-        {
-            CCacheBlock *cb = new CCacheBlock(nBlock ++, 0);
-            Block_list.push_back(cb);
-        }
-        CCacheBlock *headBlock = Block_list.front();
-        headBlock->m_nOffset = Offset;
 
-        // 2. Do  allocation for the N-block list
-        DEBUG(errs() << "$$$Starting allocation$$$\n");
-        do
-        {
-            // 2.1 find the most beneficial edge
-            std::map<int, std::map<int, double> >::iterator I = fGraph.begin(), E = fGraph.end();
+		 int nBlock = 0;
+		 bool bNOver = true;
+		 while ( bNOver )
+		 {
+		     DEBUG(errs() << "$$$Starting allocation$$$\n");
+			std::map<int, std::map<int, double> >::iterator I = fGraph.begin(), E = fGraph.end();
+			 // find the most weight edge
 			 int nPrev = 0, nNext = 0;
 			 bool bNFound = true;
 			 for(; I != E; ++ I)
 			 {
-			     // the first object in each block is not allcoated ?? No, alloated
-			     // skip allocated && non-head vertex
-			     bool bHeadVertex = false;
-			     if( headVertice.find(I->first) != headVertice.end() )
-                    bHeadVertex = true;
-				 if (allocated.find(I->first) != allocated.end() && !bHeadVertex )
+				 if (allocated.find(I->first) != allocated.end() )      // the first object in each block is not allcoated ??
 					 continue;
-
-				 std::map<int,double> &neighbors = I->second;
-				 std::map<int, double>::iterator i2d_p = neighbors.begin(), i2d_e = neighbors.end();
+				 std::map<int,double> &adjacent = I->second;
+				 std::map<int, double>::iterator i2d_p = adjacent.begin(), i2d_e = adjacent.end();
 				 for( ; i2d_p != i2d_e; ++ i2d_p)
 				 {
-				     // skip the second headVertice
-				     bool bHeadVertex2 = false;
-                     if( headVertice.find(i2d_p->first) != headVertice.end() )
-                        bHeadVertex2= true;
-				     if( bHeadVertex && bHeadVertex2 )
-                        continue;
-				     // skip the allcoated vertex, the removed edges, and the self-edge
-					 if ( (allocated.find(i2d_p->first) != allocated.end() && !bHeadVertex2)
-                        || i2d_p->first == I->first
+					 if (allocated.find(i2d_p->first) != allocated.end() || i2d_p->first == I->first
                         || removedEdge[i2d_p->first].find(I->first) != removedEdge[i2d_p->first].end() )
 						continue;
-					 if( bNFound || i2d_p->second > fGraph[nPrev][nNext] )  // record the bigger one
+					 if( bNFound || fGraph[nPrev][nNext] < i2d_p->second)
 					 {
 						 nPrev = I->first;
 						 nNext = i2d_p->first;
 						 bNFound = false;
 					 }
 				 }
-			}
-            if( bNFound)   // no more edges left, it means all objects has been allocated or no more could be allocated
-            {
+			 }
+
+			 if( bNFound )
                 break;
-            }
+            // allocate the objects connected by this edge
+            // a. alloate both objects
+            // b. erase the second object
+            // c. set v_current
+            // d. merge the edges of second object
 
-            CCacheBlock* pBlock = NULL;
-            if( headVertice.find(nPrev) != headVertice.end() )    // nPrev is the head vertex
+             int nOffset = 0;
+             if( nBlock == 0 )         // The first block follows the original offset
+                nOffset = Offset;
+             int nOffset1 = CacheOffset(mf, hAlloc, nOffset, nPrev);
+             if( nOffset1 == - 1)
+             {
+                 if( nBlock == 0 && Offset > 0) // if the first block could not hold the first allocable object, skip it
+                 {
+                     CCacheBlock *pBlock = new CCacheBlock(nBlock ++, 0);
+                     Block_list.push_back(pBlock);
+                     pBlock->m_nOffset = Offset;
+                     continue;
+                 }
+                 assert(false && "nOffset1 should not be -1");
+             }
+             nOffset = nOffset1 + MFI->getObjectSize(nPrev);
+             int nOffset2 = CacheOffset(mf, hAlloc, nOffset, nNext);
+             if( nOffset2 == -1)  // if the block could not hold the second object of an edge, skip it or split this edge (this edge is not so valuable)
+             {
+                 if( nBlock == 0 && Offset > 0)
+                 {
+                     CCacheBlock *pBlock = new CCacheBlock(nBlock ++, 0);
+                     Block_list.push_back(pBlock);
+                     pBlock->m_nOffset = Offset;
+                     continue;
+                 }
+                 else
+                 {
+                     removedEdge[nPrev].insert(nNext);
+                     removedEdge[nNext].insert(nPrev);
+                     continue;
+                 }
+             }
+
+             // create a new block to handle the most-beneficial edge
+             CCacheBlock *pBlock = new CCacheBlock(nBlock ++, 0);
+             Block_list.push_back(pBlock);
+             pBlock->m_hOff2Obj[nOffset1] = nPrev;
+             pBlock->m_nOffset = nOffset1 + MFI->getObjectSize(nPrev);
+             pBlock->m_Objs.insert(nPrev);
+             sorted.insert(nPrev);
+             pBlock->m_hOff2Obj[nOffset2] = nNext;
+             pBlock->m_nOffset = nOffset2 + MFI->getObjectSize(nNext);
+             pBlock->m_Objs.insert(nNext);
+            sorted.insert(nNext);
+
+             allocated.insert(nNext);
+
+             int v_current = nPrev;
+
+             UpdateGraph(fGraph, removedEdge, pBlock, nNext);
+
+            // allocate the adjacent into the same block
+            while (true)
             {
-                assert(headVertice.find(nNext) == headVertice.end() );      // ????? with line 258
-                pBlock = SingleAllocate(nPrev,nNext, hBlocks, mf, allocated, sorted);
-                if( pBlock )
+                // choose most-beneficial adjacent to v_current
+                bool bNFound = true;
+                int nBig;
+                map<int, double> &adjacents = fGraph[v_current];
+                map<int, double>::iterator d_i = adjacents.begin(), d_e = adjacents.end();
+                for( ; d_i != d_e; ++ d_i )
                 {
-                    UpdateGraph(fGraph, removedEdge, pBlock, nNext);
+                    if (allocated.find(d_i->first) != allocated.end() || d_i->first == v_current)
+						continue;
+                    if( bNFound || adjacents[nBig] < adjacents[d_i->first])
+                    {
+                        nBig = d_i->first;
+                        bNFound = false;
+                    }
+                }
+                 // allocating the nBig adjacent
+                if( bNFound)        // all objects has been allocated
+                {
+                    bNOver = false;
+                    break;
                 }
 
-            }
-            else if( headVertice.find(nNext) != headVertice.end() )   // nNext is the head vertex
-            {
-                assert(headVertice.find(nPrev) == headVertice.end() );      // ????? with line 258
-                pBlock = SingleAllocate(nNext,nPrev, hBlocks, mf, allocated, sorted);
-                if( pBlock )
+                int nOffset = CacheOffset(mf, hAlloc, pBlock->m_nOffset, nBig);
+                if( nOffset == -1)     // this block is full
                 {
-                    UpdateGraph(fGraph, removedEdge, pBlock, nPrev);
-                }
-            }
-            else
-            {
-                pBlock = DoubleAllocate(nPrev,nNext, hBlocks, Block_list, mf, allocated, sorted);
-                if( pBlock )
-                {
-                    std::map<int,int>::iterator i2i_p = pBlock->m_hOff2Obj.begin();
-                    if( i2i_p->second != nPrev )
-                        UpdateGraph(fGraph, removedEdge, pBlock, nPrev);
-                    else
-                        headVertice.insert( nPrev);               // add a new head vertex
-                    UpdateGraph(fGraph, removedEdge, pBlock, nNext);
+                    allocated.insert(v_current);
+                    break;
                 }
 
+                pBlock->m_hOff2Obj[nOffset] = nBig;
+                pBlock->m_Objs.insert(nBig);
+                pBlock->m_nOffset = nOffset + MFI->getObjectSize(nBig);
+                allocated.insert(nBig);
+                sorted.insert(nBig);
+                UpdateGraph(fGraph, removedEdge, pBlock, nBig);
             }
 
-            if( !pBlock )
-            {
-                removedEdge[nPrev].insert(nNext);
-                removedEdge[nNext].insert(nPrev);
-            }
-        }while(true);
+		 }
+		 Offset = AssignOffset(Block_list, Offset, Offset, mf, StackGrowsDown);
 
-        // 3. Adjust the stack layout for these memory blocks
-        Offset = AssignOffset(Block_list, Offset, Offset, mf, StackGrowsDown);
-
-		 // 4. Alloate the stack objects unsorted
+		 // alloate the stack objects unsorted
 		 std::set<int>::iterator OI = Objects.begin(), OE = Objects.end();
 		 for(; OI != OE; ++ OI)
 		 {
@@ -356,68 +406,7 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 		return true;
 	}
 
-
-
-    CCacheBlock* SingleAllocate(int first, int second, std::map<int, CCacheBlock *> &hBlocks, llvm::MachineFunction &mf,
-                        std::set<int> &allocated, std::set<int> &sorted)
-    {
-        CCacheBlock *pBlock = hBlocks[first];
-
-        int nOffset = CacheOffset(mf, pBlock, pBlock->m_nOffset, second);
-        if( nOffset == -1)
-        {
-            return NULL;
-        }
-        else
-        {
-            FiniAllocate(second, nOffset, pBlock, hBlocks,  mf, allocated, sorted);
-            return pBlock;
-        }
-    }
-
-    CCacheBlock* DoubleAllocate(int first, int second, std::map<int, CCacheBlock *> &hBlocks, std::list<CCacheBlock *> &Blocks, llvm::MachineFunction &mf,
-                        std::set<int> &allocated, std::set<int> &sorted)
-    {
-        std::list<CCacheBlock *>::iterator cb_p = Blocks.begin(), cb_e = Blocks.end();
-        MachineFrameInfo *MFI = mf.getFrameInfo();
-
-        bool bAllocable = false;
-        for(; cb_p != cb_e; ++ cb_p)
-        {
-            CCacheBlock *cb = *cb_p;
-            int nOffset1 = CacheOffset(mf, cb, cb->m_nOffset, first);
-            if( nOffset1 == -1 )
-                continue;
-            int nOffset2 = CacheOffset(mf, cb, nOffset1 + MFI->getObjectSize(first), second);
-            if( nOffset2 == -1)
-                continue;
-
-            bAllocable = true;
-            FiniAllocate(first, nOffset1, cb, hBlocks, mf, allocated, sorted);
-            FiniAllocate(second, nOffset2, cb, hBlocks, mf, allocated, sorted);
-            break;
-        }
-        if( bAllocable)
-            return *cb_p;
-        else
-            return NULL;
-    }
-
-    int FiniAllocate(int index, int nOffset, CCacheBlock *pBlock, std::map<int, CCacheBlock *> &hBlocks,
-                     llvm::MachineFunction &mf, std::set<int> &allocated, std::set<int> &sorted )
-    {
-        MachineFrameInfo *MFI = mf.getFrameInfo();
-        pBlock->m_hOff2Obj[nOffset] = index;
-        pBlock->m_Objs.insert(index);
-        pBlock->m_nOffset = nOffset + MFI->getObjectSize(index);
-        allocated.insert(index);
-        sorted.insert(index);
-        hBlocks[index] = pBlock;
-//        UpdateGraph(fGraph, removedEdge, pBlock, index);
-//          hBlocks;
-        return 0;
-    }
-	int CacheOffset(llvm::MachineFunction &mf, CCacheBlock *pBlock, int nOffset, int nPrev)
+	int CacheOffset(MachineFunction &mf, std::map<int, CCacheBlock *> &hAlloc, int nOffset, int nPrev)
 	{
 		//const TargetFrameInfo &TFI = *mf.getTarget().getFrameInfo();
 		//bool StackGrowsDown = TFI.getStackGrowthDirection() == TargetFrameInfo::StackGrowsDown;
@@ -429,9 +418,9 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 		 unsigned Align = MFI->getObjectAlignment(nPrev );
 		 nOffset = (nOffset + Align - 1)/ Align * Align;
 		{
-			if( nOffset + MFI->getObjectSize(nPrev) > CACHE_LINE_SIZE )
+			if( nOffset + MFI->getObjectSize(nPrev) > CASCH_LINE_SIZE )
 				return -1;
-			DEBUG(dbgs() << "try alloc FI(" << nPrev << ") at Block[" << ":" << pBlock->m_nID << "][" << nOffset << "]\n");
+			DEBUG(dbgs() << "alloc FI(" << nPrev << ") at Block[" << ":" << nOffset << "]\n");
 			//pBlock->m_hObj2Off[nPrev] = pBlock->m_nOffset;
 			//pBlock->m_nOffset += MFI->getObjectSize(nPrev);
 			return nOffset;
@@ -439,34 +428,6 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 
 	 }
 
-     bool FindLeastEdge(int &nPrev, int &nNext, std::map<int, std::map<int, double> > &fGraph, std::map<int, std::set<int> > &removedEdge, std::set<int> &allocated)
-     {
-         std::map<int, std::map<int, double> >::iterator I = fGraph.begin(), E = fGraph.end();
-			 // find the most weight edge   ==> least weight edge
-         nPrev = 0;
-         nNext = 0;
-         bool bNFound = true;
-         for(; I != E; ++ I)
-         {
-             if (allocated.find(I->first) != allocated.end() )      // the first object in each block is not allcoated ??
-                 continue;
-             std::map<int,double> &adjacent = I->second;
-             std::map<int, double>::iterator i2d_p = adjacent.begin(), i2d_e = adjacent.end();
-             for( ; i2d_p != i2d_e; ++ i2d_p)
-             {
-                 if (allocated.find(i2d_p->first) != allocated.end() || i2d_p->first == I->first
-                    || removedEdge[i2d_p->first].find(I->first) != removedEdge[i2d_p->first].end() )
-                    continue;
-                 if( bNFound || fGraph[nPrev][nNext] > i2d_p->second)     // the least edge
-                 {
-                     nPrev = I->first;
-                     nNext = i2d_p->first;
-                     bNFound = false;
-                 }
-             }
-         }
-         return bNFound;
-     }
 	 int UpdateGraph(std::map<int, std::map<int, double> > &graph, std::map<int, std::set<int> > &removedEdge, CCacheBlock *pBlock, int nIndex)
 	 {
 		 std::map<int, int>::iterator o2d_I = pBlock->m_hOff2Obj.begin();
@@ -495,16 +456,9 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 		 std::list<CCacheBlock *>::iterator b_I = Block_list.begin(), b_E = Block_list.end();
 		 for(; b_I != b_E; ++ b_I)
 		 {
-		     CCacheBlock *pBlock = *b_I;
-            if( pBlock->m_hOff2Obj.empty() )
-		     {
-		         // For the first block, align with CACHE_LINE_SIZE; for other empty blocks, skip it
-		         if( pBlock->m_nOffset != 0 )   // It is only possible for the first block
-                    Offset = CACHE_LINE_SIZE;
-                  continue;
-		     }
 
-			 Offset = (Offset + CACHE_LINE_SIZE-1) /CACHE_LINE_SIZE * CACHE_LINE_SIZE;
+			 Offset = (Offset + CASCH_LINE_SIZE-1) /CASCH_LINE_SIZE * CASCH_LINE_SIZE;
+			 CCacheBlock *pBlock = *b_I;
 			 int nFinal = 0;
 			 std::map<int,int>::iterator i2i_I = pBlock->m_hOff2Obj.begin(), i2i_E = pBlock->m_hOff2Obj.end();
 			 for(; i2i_I != i2i_E; ++ i2i_I)
@@ -527,11 +481,93 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 				}
 			 }
 			 Offset = nFinal;
-
+			 if( (*b_I)->m_hOff2Obj.empty() )
+		     {
+		         Offset = CASCH_LINE_SIZE;
+		     }
 		 }
 		 return Offset;
 	 }
+	/*bool PackStack(MachineFunction &mf, int64_t &Offset, RegScavenger *RS, int min, int max, SmallSet<int, 16> &LargeStackObjs)
+	{
+		const TargetFrameInfo &TFI = *mf.getTarget().getFrameInfo();
+		bool StackGrowsDown = TFI.getStackGrowthDirection() == TargetFrameInfo::StackGrowsDown;
+		MachineFrameInfo *MFI = mf.getFrameInfo();
 
+
+		set<int> Objects;
+		// search the stack objects needing allocation
+		 for (unsigned i = 0, e = MFI->getObjectIndexEnd(); i != e; ++i)
+		 {
+			if (MFI->isObjectPreAllocated(i) &&	MFI->getUseLocalStackAllocationBlock() )
+			  continue;
+			if (i >= min && i <= max)
+			  continue;
+			if (RS && (int)i == RS->getScavengingFrameIndex())
+			  continue;
+			if (MFI->isDeadObjectIndex(i))
+			  continue;
+			if (MFI->getStackProtectorIndex() == (int)i)
+			  continue;
+			// qali
+			if (LargeStackObjs.count(i))
+			  continue;
+			Objects.insert(i);
+		 }
+
+		 // allocate the stack objects sorted by writing counter
+		 std::set<AccessRecord *, RecordCmp> &fAccessCount = AccessCount[mf.getFunction()];
+		 std::set<AccessRecord *, RecordCmp> ::iterator I = fAccessCount.begin(), E = fAccessCount.end();
+		 std::set<int> sorted;
+		 for(; I != E; ++ I)
+		 {
+			if( Objects.find((*I)->m_nID ) == Objects.end() )
+				continue;
+			if (StackGrowsDown)
+				Offset += MFI->getObjectSize((*I)->m_nID);
+			unsigned Align = MFI->getObjectAlignment((*I)->m_nID);
+			Offset = (Offset + Align - 1)/ Align * Align;
+
+			if (StackGrowsDown)
+			{
+				DEBUG(dbgs() << "alloc FI(" << (*I)->m_nID << ") at SP[" << -Offset << "]\n");
+				MFI->setObjectOffset((*I)->m_nID, -Offset); // Set the computed offset
+			}
+			else
+			{
+				DEBUG(dbgs() << "alloc FI(" << (*I)->m_nID << ") at SP[" << Offset << "]\n");
+				MFI->setObjectOffset((*I)->m_nID, Offset);
+				Offset += MFI->getObjectSize((*I)->m_nID);
+			}
+			sorted.insert((*I)->m_nID );
+		 }
+
+		 // alloate the stack objects unsorted
+		 std::set<int>::iterator OI = Objects.begin(), OE = Objects.end();
+		 for(; OI != OE; ++ OI)
+		 {
+			if( sorted.find(*OI) != sorted.end())
+				continue;
+			if (StackGrowsDown)
+				Offset += MFI->getObjectSize(*OI);
+			unsigned Align = MFI->getObjectAlignment(*OI);
+			Offset = (Offset + Align - 1)/ Align * Align;
+
+			if (StackGrowsDown)
+			{
+				DEBUG(dbgs() << "alloc FI(" << *OI << ") at SP[" << -Offset << "]\n");
+				MFI->setObjectOffset(*OI, -Offset); // Set the computed offset
+			}
+			else
+			{
+				DEBUG(dbgs() << "alloc FI(" << *OI << ") at SP[" << Offset << "]\n");
+				MFI->setObjectOffset(*OI, Offset);
+				Offset += MFI->getObjectSize(*OI);
+			}
+		 }
+		return true;
+	}
+	*/
     int UpdateEdge(std::map<int, std::map<int, AccessEdge *> > &AccEdge, int nFirst, int nSec, bool bFirst, bool bSec, double dFreq)
     {
         AccessEdge * pAccEdge = NULL;
@@ -549,14 +585,14 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
         if(bFirst  && bSec)
         {
             //++pAccEdge->nRR;
-            pAccEdge->dWeight += dFreq * 5;   //10
+            pAccEdge->dWeight += dFreq * 10;
         }
         else if( bFirst && !bSec )
-            pAccEdge->dWeight += dFreq * (5);  // 2
+            pAccEdge->dWeight += dFreq * (2);
         else if( !bFirst && bSec )
-            pAccEdge->dWeight += dFreq * (5);  // 2
+            pAccEdge->dWeight += dFreq * (2);
         else
-            pAccEdge->dWeight += dFreq * 5;  // 200
+            pAccEdge->dWeight += dFreq * 200;
         return 0;
     }
 
