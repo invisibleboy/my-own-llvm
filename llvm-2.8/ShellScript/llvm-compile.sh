@@ -7,8 +7,8 @@ LLC=${BIN_PATH}"llc"
 LLVM_LD=${BIN_PATH}"llvm-ld"
 OPTI=-O3
 CC=gcc
-ALPHA=2
-BETA=-8
+#ALPHA=8
+#BETA=-2
 	
 	if [ $# -lt 2 ]; then
 		echo "lack of argument"
@@ -17,12 +17,15 @@ BETA=-8
 	DIR=$1
 	echo "Current in: $(pwd)"
 
-	if [ -f $1$2 ]; then
-		rm $1$2
+	if [ -f $1$2$3 ]; then
+		rm $1$2$3
 	fi
 	if [ -f log ]; then
 		rm log	
 	fi
+
+	ALPHA=$2
+	BETA=$3
 
 	if [[ $DIR == "SMG2000" ]]; then
 		CPPFLAGS="-D_POSIX_SOURCE -DHYPRE_TIMING -DHYPRE_SEQUENTIAL -I."
@@ -72,8 +75,8 @@ BETA=-8
 	$LLC $OPTI -debug-only=ACCESS -alpha=$ALPHA -beta=$BETA main.bc -o main.s	2>>log
 
 	#assemble, link the main.bc into main.out
-	echo "$CC -g main.s -static -lm -o $1$2"
-	$CC -g main.s -static -lm -o $1$2 2>>log
+	echo "$CC -g main.s -static -lm -o $1$2$3
+	$CC -g main.s -static -lm -o $1$2$3 2>>log
 	
 	
 	if [ $? -ne 0 ]; then
