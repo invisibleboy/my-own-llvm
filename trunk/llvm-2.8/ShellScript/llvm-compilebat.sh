@@ -6,6 +6,8 @@ LLVM_LINK=${BIN_PATH}"llvm-link"
 CC=gcc
 TOOL=/home/qali/Develop/llvm-2.8/ShellScript/llvm-compile.sh
 
+#llvm-compileBat.sh -55
+
 if [ $# -lt 1 ]; then
 	echo "lack of argument"
 	exit

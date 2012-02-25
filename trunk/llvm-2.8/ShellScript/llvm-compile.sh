@@ -7,6 +7,8 @@ LLC=${BIN_PATH}"llc"
 LLVM_LD=${BIN_PATH}"llvm-ld"
 OPTI=-O3
 CC=gcc
+ALPHA=2
+BETA=-8
 	
 	if [ $# -lt 2 ]; then
 		echo "lack of argument"
@@ -15,8 +17,8 @@ CC=gcc
 	DIR=$1
 	echo "Current in: $(pwd)"
 
-	if [ -f main$2 ]; then
-		rm main$2
+	if [ -f $1$2 ]; then
+		rm $1$2
 	fi
 	if [ -f log ]; then
 		rm log	
@@ -66,12 +68,12 @@ CC=gcc
 	$LLVM_LINK $bcfiles -o main.bc 2>>log
 	
 	#llc *.bc into *.s file
-	echo "$LLC $OPTI -debug-only=ACCESS main.bc -o main.s"
-	$LLC $OPTI -debug-only=ACCESS main.bc -o main.s	2>>log
+	echo "$LLC $OPTI -debug-only=ACCESS -alpha=$ALPHA -beta=$BETA main.bc -o main.s"
+	$LLC $OPTI -debug-only=ACCESS -alpha=$ALPHA -beta=$BETA main.bc -o main.s	2>>log
 
 	#assemble, link the main.bc into main.out
-	echo "$CC -g main.s -static -lm -o main$2"
-	$CC -g main.s -static -lm -o main$2 2>>log
+	echo "$CC -g main.s -static -lm -o $1$2"
+	$CC -g main.s -static -lm -o $1$2 2>>log
 	
 	
 	if [ $? -ne 0 ]; then

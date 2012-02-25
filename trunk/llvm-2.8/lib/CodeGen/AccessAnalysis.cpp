@@ -14,6 +14,10 @@
 #include "llvm/CodeGen/AccessAnalysis2.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
+#include "llvm/Support/CommandLine.h"
+
+cl::opt<int> Alpha("alpha", cl::desc("The alpha value") );
+cl::opt<int> Beta("beta", cl::desc("The beta value") );
 
 extern std::map<std::string, std::set<std::string> > g_hFuncCall;
 extern const std::map<const Function *, std::map<const BasicBlock *, double> > *g_hF2B2Acc;
@@ -549,14 +553,14 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
         if(bFirst  && bSec)
         {
             //++pAccEdge->nRR;
-            pAccEdge->dWeight += dFreq * 5;   //10
+            pAccEdge->dWeight += dFreq * Alpha;   //10
         }
         else if( bFirst && !bSec )
-            pAccEdge->dWeight += dFreq * (5);  // 2
+            pAccEdge->dWeight += dFreq * Beta;  // 2
         else if( !bFirst && bSec )
-            pAccEdge->dWeight += dFreq * (5);  // 2
+            pAccEdge->dWeight += dFreq * Beta;  // 2
         else
-            pAccEdge->dWeight += dFreq * 5;  // 200
+            pAccEdge->dWeight += dFreq * Alpha;  // 200
         return 0;
     }
 
