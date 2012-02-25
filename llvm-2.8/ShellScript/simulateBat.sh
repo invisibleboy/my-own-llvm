@@ -1,4 +1,5 @@
 TOOL=/home/qali/Develop/llvm-2.8/ShellScript/simulate.sh
+#TOOL=/home/qali/Develop/llvm-2.8/ShellScript/floatPoint.sh
 
 if [ $# -lt 1 ]; then
 	echo "lack of argument"
@@ -12,12 +13,11 @@ for DIR in *; do
 	fi
 
 	cd $DIR
-	echo "Current in: $(pwd)"
+	echo "Current in: $(pwd)"	
 	
-	DIR=main
 
-	echo "${TOOL} $DIR $1 $2"
-	${TOOL} $DIR $1	$2
+	echo "${TOOL} $DIR $1"
+	${TOOL} $DIR $1
 	
 	if [ $? -ne 0 ]; then
 		exit 

@@ -1,8 +1,8 @@
 PIN_PATH=/home/qali/Develop/my-own-pin/pin-2.10-45467-gcc.3.4.6-ia32_intel64-linux/
 PIN=$PIN_PATH"pin"
-PIN_TOOL=$PIN_PATH"source/tools/SimpleExamples/obj-ia32/cacheWithBuffer.so"
-APP=$1$2
-OUTPUT=$1$2".sim"
+PIN_TOOL=$PIN_PATH"source/tools/SimpleExamples/obj-ia32/floatPoint.so"
+APP=$1$2$3
+OUTPUT=$1$2$3".floatPoint"
 
 	if [ $# -lt 1 ]; then
 		echo "lack of argument"
@@ -38,8 +38,8 @@ OUTPUT=$1$2".sim"
 	#elif [[ $DIR == "flops" -o $DIR == "mandel" -o $DIR == "perlin" ]]; then
 	fi
 
-	echo "$PIN -t $PIN_TOOL -o $OUTPUT -- ./$APP >log"
-	$PIN -t $PIN_TOOL -o $OUTPUT -- ./$APP >log	
+	echo "$PIN -t $PIN_TOOL -o $OUTPUT -- ./$APP >log 2>log2"
+	$PIN -t $PIN_TOOL -o $OUTPUT -- ./$APP >log 2>log2	
 	
 	if [ $? -ne 0 ]; then
 		exit 
