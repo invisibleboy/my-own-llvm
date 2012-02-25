@@ -6,9 +6,9 @@ LLVM_LINK=${BIN_PATH}"llvm-link"
 CC=gcc
 TOOL=/home/qali/Develop/llvm-2.8/ShellScript/llvm-compile.sh
 
-#llvm-compileBat.sh -55
+#llvm-compileBat.sh -5 5
 
-if [ $# -lt 1 ]; then
+if [ $# -lt 2 ]; then
 	echo "lack of argument"
 	exit
 fi
@@ -22,8 +22,8 @@ for DIR in *; do
 	cd $DIR
 	echo "Current in: $(pwd)"
 
-	echo "${TOOL} $DIR $1"
-	${TOOL} $DIR $1	
+	echo "${TOOL} $DIR $1 $2"
+	${TOOL} $DIR $1	$2
 	
 	if [ $? -ne 0 ]; then
 		exit 
