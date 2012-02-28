@@ -17,8 +17,8 @@ CC=gcc
 	DIR=$1
 	echo "Current in: $(pwd)"
 
-	if [ -f $1$2$3 ]; then
-		rm $1$2$3
+	if [ -f $1"-"$2$3 ]; then
+		rm $1"-"$2$3
 	fi
 	if [ -f log ]; then
 		rm log	
@@ -75,8 +75,8 @@ CC=gcc
 	$LLC $OPTI -debug-only=ACCESS -alpha=$ALPHA -beta=$BETA main.bc -o main.s	2>>log
 
 	#assemble, link the main.bc into main.out
-	echo "$CC -g main.s -static -lm -o $1$2$3
-	$CC -g main.s -static -lm -o $1$2$3 2>>log
+	echo "$CC -g main.s -static -lm -o $1"-"$2$3"
+	$CC -g main.s -static -lm -o $1"-"$2$3 2>>log
 	
 	
 	if [ $? -ne 0 ]; then
