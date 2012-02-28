@@ -1,7 +1,7 @@
 TOOL=/home/qali/Develop/llvm-2.8/ShellScript/simulate.sh
 #TOOL=/home/qali/Develop/llvm-2.8/ShellScript/floatPoint.sh
 
-if [ $# -lt 2 ]; then
+if [ $# -lt 1 ]; then
 	echo "lack of argument"
 	exit
 fi
