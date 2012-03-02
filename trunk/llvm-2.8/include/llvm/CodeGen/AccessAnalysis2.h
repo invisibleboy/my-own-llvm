@@ -12,11 +12,11 @@ using namespace std;
 #include "llvm/CodeGen/MachineFunction.h"
 using namespace llvm;
 
-#define CACHE_LINE_SIZE	32
-#define ASSOCIATIVITY	8
-#define NUM_OF_SETS	1024
-#define	CASCH_CAPACITY	(2 << 20)
-#define NOF (-(2<<31))
+#define CACHE_LINE_SIZE	16
+//#define ASSOCIATIVITY	8
+//#define NUM_OF_SETS	1024
+//#define	CASCH_CAPACITY	(2 << 20)
+//#define NOF (-(2<<31))
 
 namespace llvm
 {

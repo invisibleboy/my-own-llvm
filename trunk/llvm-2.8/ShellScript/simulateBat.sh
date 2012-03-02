@@ -13,6 +13,10 @@ for DIR in *; do
 	fi
 
 	cd $DIR
+	if [ $? -ne 0 ]; then
+		exit 
+	fi
+
 	echo "Current in: $(pwd)"	
 	
 

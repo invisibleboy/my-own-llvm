@@ -504,8 +504,10 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 		     {
 		         // For the first block, align with CACHE_LINE_SIZE; for other empty blocks, skip it
 		         if( pBlock->m_nOffset != 0 )   // It is only possible for the first block
-                    Offset = CACHE_LINE_SIZE;
-                  continue;
+				 {
+                    Offset = (pBlock->m_nOffset + CACHE_LINE_SIZE-1) /CACHE_LINE_SIZE * CACHE_LINE_SIZE;
+					continue;
+				 }
 		     }
 
 			 Offset = (Offset + CACHE_LINE_SIZE-1) /CACHE_LINE_SIZE * CACHE_LINE_SIZE;

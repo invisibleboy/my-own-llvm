@@ -38,8 +38,8 @@ OUTPUT=$1$2".sim"
 	#elif [[ $DIR == "flops" -o $DIR == "mandel" -o $DIR == "perlin" ]]; then
 	fi
 
-	echo "$PIN -t $PIN_TOOL -o $OUTPUT -- ./$APP >log"
-	$PIN -t $PIN_TOOL -o $OUTPUT -- ./$APP >log	
+	echo "$PIN -t $PIN_TOOL -b 16 -o $OUTPUT -- ./$APP >log"
+	$PIN -t $PIN_TOOL -b 16 -o $OUTPUT -- ./$APP >log	
 	
 	if [ $? -ne 0 ]; then
 		exit 
