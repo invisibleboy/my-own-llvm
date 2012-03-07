@@ -505,13 +505,12 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 		         // For the first block, align with CACHE_LINE_SIZE; for other empty blocks, skip it
 		         if( pBlock->m_nOffset != 0 )   // It is only possible for the first block
 				 {
-                    Offset = (pBlock->m_nOffset + CACHE_LINE_SIZE-1) /CACHE_LINE_SIZE * CACHE_LINE_SIZE;
-					continue;
+                    Offset = pBlock->m_nOffset;
 				 }
+				 continue;
 		     }
 
-			 Offset = (Offset + CACHE_LINE_SIZE-1) /CACHE_LINE_SIZE * CACHE_LINE_SIZE;
-			 int nFinal = 0;
+			 int nFinal = (Offset + CACHE_LINE_SIZE-1) /CACHE_LINE_SIZE * CACHE_LINE_SIZE;
 			 std::map<int,int>::iterator i2i_I = pBlock->m_hOff2Obj.begin(), i2i_E = pBlock->m_hOff2Obj.end();
 			 for(; i2i_I != i2i_E; ++ i2i_I)
 			 {
@@ -519,7 +518,7 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 				{
 					int nOff = i2i_I->first;
 					int index = i2i_I->second;
-					nFinal = nOff+ MFI->getObjectSize(index)+Offset;
+					nFinal += nOff+ MFI->getObjectSize(index);
 					MFI->setObjectOffset(index, -nFinal); // Set the computed offset
 					DEBUG(dbgs() << "qali alloc FI(" << i2i_I->second << ") at SP[" << -nFinal << "]\n");
 				}
@@ -527,7 +526,7 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 				{
 					int nOff = i2i_I->first;
 					int index = i2i_I->second;
-					nFinal = nOff+Offset;
+					nFinal += nOff;
 					MFI->setObjectOffset(index, nFinal);
 					DEBUG(dbgs() << "qali alloc FI(" << i2i_I->second << ") at SP[" << nFinal << "]\n");
 				}
