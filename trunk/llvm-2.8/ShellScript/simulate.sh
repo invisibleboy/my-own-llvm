@@ -1,8 +1,9 @@
 PIN_PATH=/home/qali/Develop/my-own-pin/pin-2.10-45467-gcc.3.4.6-ia32_intel64-linux/
 PIN=$PIN_PATH"pin"
-PIN_TOOL=$PIN_PATH"source/tools/SimpleExamples/obj-ia32/cacheWithBuffer.so"
+#PIN_TOOL=$PIN_PATH"source/tools/SimpleExamples/obj-ia32/cacheWithBuffer.so"
+PIN_TOOL=$PIN_PATH"source/tools/SimpleExamples/obj-ia32/hybridCache.so"
 APP=$1$2
-OUTPUT=$1$2".sim"
+OUTPUT=$1$2".hybrid"
 
 	if [ $# -lt 1 ]; then
 		echo "lack of argument"
