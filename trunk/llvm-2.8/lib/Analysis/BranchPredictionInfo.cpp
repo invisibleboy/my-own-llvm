@@ -40,6 +40,9 @@ void BranchPredictionInfo::FindBackAndExitEdges(Function &F) {
   SmallPtrSet<const BasicBlock *, 64> LoopsVisited;
   SmallPtrSet<const BasicBlock *, 64> BlocksVisited;
 
+	int count = 0;
+	if(F.getName() == "hypre_SMGResidual")
+		count = count + 1;
   for (LoopInfo::iterator LIT = LI->begin(), LIE = LI->end();
        LIT != LIE; ++LIT) {
     Loop *rootLoop = *LIT;

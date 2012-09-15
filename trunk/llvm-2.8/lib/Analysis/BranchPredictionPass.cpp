@@ -107,7 +107,7 @@ bool BranchPredictionPass::runOnFunction(Function &F) {
     // Calculate the likelihood of the successors of this basic block.
     CalculateBranchProbabilities(FI);
 
-	///////////////////qali//////
+	///////////////////qali: obtain and output edge frequency estimation//////
 
 	std::string szTemp;
 	std::string szFreq = F.getParent()->getModuleIdentifier() + ".frequency";

@@ -12,11 +12,39 @@ using namespace std;
 #include "llvm/CodeGen/MachineFunction.h"
 using namespace llvm;
 
-#define CACHE_LINE_SIZE	16
+
+#define CACHE_LINE_SIZE	32
 //#define ASSOCIATIVITY	8
 //#define NUM_OF_SETS	1024
 //#define	CASCH_CAPACITY	(2 << 20)
 //#define NOF (-(2<<31))
+
+
+#undef HYBRID_ALLOCATION
+#undef DATA_LAYOUT_ALLOCATION
+#undef CACHE_LOCK_ALLOCATION
+
+#undef DATA_LAYOUT
+#undef CACHE_LOCK
+
+//#define HYBRID_ALLOCATION
+#define DATA_LAYOUT_ALLOCATION
+#define CACHE_LOCK_ALLOCATION
+
+#ifdef HYBRID_ALLOCATION
+#define DATA_LAYOUT
+#define CACHE_LOCK	
+#endif
+
+#ifdef DATA_LAYOUT_ALLOCATION
+#define DATA_LAYOUT
+#endif
+
+#ifdef CACHE_LOCK_ALLOCATION
+#define CACHE_LOCK
+#endif
+
+
 
 namespace llvm
 {
@@ -83,9 +111,9 @@ namespace llvm
 	};
 	struct RecordCmp
 	{
-		bool operator () ( AccessRecord *first, AccessRecord *second)
+		bool operator () ( const AccessRecord &first, const AccessRecord &second)
 		{
-			if( first->m_dCount < second->m_dCount)
+			if( first.m_dCount > second.m_dCount)
 				return true;
 			return false;
 		}
@@ -118,6 +146,9 @@ namespace llvm
                                  llvm::MachineFunction &mf, std::set<int> &allocated, std::set<int> &sorted);
     int FiniAllocate(int index, int nOffset, CCacheBlock *pBlock, std::map<int, CCacheBlock *> &hBlocks,
                      llvm::MachineFunction &mf, std::set<int> &allocated, std::set<int> &sorted );
+					 
+	// cache locking
+	bool CacheLock(llvm::MachineFunction &mf);
 //}
 
 #endif

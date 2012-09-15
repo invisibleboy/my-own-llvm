@@ -1043,7 +1043,7 @@ static bool LinkFunctionBodies(Module *Dest, Module *Src,
                                ValueToValueMapTy &ValueMap,
                                std::string *Err) {
 
-    // qali
+    // qali: if a function is defined instead of just declared, it is a user function
     for (Module::iterator DF = Dest->begin(), E = Dest->end(); DF != E; ++DF)
         if (!DF->isDeclaration())
             UserFunctions.insert(DF->getName() );// Des
@@ -1053,7 +1053,7 @@ static bool LinkFunctionBodies(Module *Dest, Module *Src,
   for (Module::iterator SF = Src->begin(), E = Src->end(); SF != E; ++SF) {
     if (!SF->isDeclaration()) {               // No body if function is external
       Function *DF = dyn_cast<Function>(ValueMap[SF]); // Destination function
-
+		// qali: if a function is defined instead of just declared, it is a user function
         UserFunctions.insert(SF->getName());
       // DF not external SF external?
       if (DF && DF->isDeclaration())
