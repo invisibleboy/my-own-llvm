@@ -1,10 +1,5 @@
-CPPCLAGS=
-RUN_OPTIONS=
-BIN_PATH="/home/qali/Build/llvm-2.8/Debug+Asserts/bin/"
-LLC=${BIN_PATH}"llc"
-LLVM_LINK=${BIN_PATH}"llvm-link"
-CC=gcc
-TOOL=/home/qali/Develop/llvm-2.8/ShellScript/llvm-compile.sh
+TOOL=/home/qali/ShellScript/llvm-compile.sh
+#TOOL=/home/qali/ShellScript/simulate.sh
 
 #llvm-compileBat.sh -5 5
 
@@ -19,18 +14,17 @@ for DIR in *; do
 		continue
 	fi
 
-	cd $DIR
-	echo "Current in: $(pwd)"
+	#cd $DIR
+	echo "Deal with: $DIR"
 
 	echo "${TOOL} $DIR $1 $2"
 	${TOOL} $DIR $1	$2
 	
 	if [ $? -ne 0 ]; then
+		echo "Error:"
 		exit 
 	fi
 
-	cd ..
-	
-
+	#cd ..
 done
 	
