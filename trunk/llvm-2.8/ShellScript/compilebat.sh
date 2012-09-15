@@ -1,8 +1,3 @@
-
-
-CPPCLAGS=
-RUN_OPTIONS=
-CC=gcc
 COMPILE_TOOL=/home/qali/Tool/compile.sh
 
 for DIR in *; do 
