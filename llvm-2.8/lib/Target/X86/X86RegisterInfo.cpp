@@ -922,8 +922,8 @@ void X86RegisterInfo::emitPrologue(MachineFunction &MF) const {
          BuildMI(MBB, MBBI, DL,  TII.get(X86::MOV32rr), X86::EAX).addReg(StackPtr);        
 
         // 2. 64-aligned
-        // ESP & 0xffffffc0 (ox1000000) -> ESP
-        BuildMI(MBB, MBBI, DL,  TII.get(X86::AND32ri), StackPtr).addReg(StackPtr).addImm(0xffffffc0);
+        // ESP & 0xffffffc0 (ox1000000) -> ESP;  ESP & 0x
+        BuildMI(MBB, MBBI, DL,  TII.get(X86::AND32ri), StackPtr).addReg(StackPtr).addImm(0xff800000);
 
         // copy the arguments
         // 3. EAX -> $ESP (store the orignial ESP as a return address)

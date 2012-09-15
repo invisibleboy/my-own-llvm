@@ -144,8 +144,7 @@ private:   // Intermediate data structures
 
   // PhysRegInfo - Keep track of which instruction was the last def of a
   // physical register. This is a purely local property, because all physical
-  // register references are presumed dead across basic blocks.
-// TODO (qali#1#): The type declarision is crazy  MachineInstr **PhysRegDef;
+  // register references are presumed dead across basic blocks.  MachineInstr **PhysRegDef;
 
   // PhysRegInfo - Keep track of which instruction was the last use of a
   // physical register. This is a purely local property, because all physical

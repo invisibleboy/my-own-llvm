@@ -35,10 +35,19 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetRegistry.h"
 #include "llvm/Target/TargetSelect.h"
+
+#include <fstream>
+using namespace std;
+
+#ifdef SPM_ALLOCATION
 #include "llvm/CodeGen/SPM.h"
+using namespace SPM;
+#endif
+
+#include "llvm/Function.h"
 #include <memory>
 using namespace llvm;
-using namespace SPM;
+
 
 // General options for llc.  Other pass-specific options are specified
 // within the corresponding llc passes, and target-specific options
@@ -47,7 +56,9 @@ using namespace SPM;
 ///////////////qali for stack size and PCG////////////
 extern std::map<std::string, int > g_hStackSize;
 extern std::map<std::string, std::set<std::string> > g_hFuncCall;
-void printPCG(ostream &os);
+
+void printPCG(std::ostream &os);
+void printLocks(std::ostream &os);
 
 static cl::opt<std::string>
 InputFilename(cl::Positional, cl::desc("<input bitcode>"), cl::init("-"));
@@ -330,16 +341,26 @@ int main(int argc, char **argv) {
     PM.run(mod);
   }
 
-  // Do spm allocation
-  SpmAllocator spmAllocator;
-  spmAllocator.run(&mod);
 
-   std::ofstream fout;
+  // by qali: cache lock  
+  std::ofstream fout;
+  std::string clFile = mod.getModuleIdentifier() + ".lock";
+  fout.open(clFile.c_str());
+  printLocks(fout);
+  fout.close();
+  
   // Dump the function call info
   std::string fcFile = mod.getModuleIdentifier() + ".dot";
   fout.open(fcFile.c_str());
   printPCG(fout);
   fout.close();
+
+	// by qali: spm allocation
+#ifdef SPM_ALLOCATION
+  // Do spm allocation
+  SpmAllocator spmAllocator;
+  spmAllocator.run(&mod);
+  
   // Dump the spm allocation info
   std::string fileName = mod.getModuleIdentifier() + ".spm";
 
@@ -365,13 +386,15 @@ int main(int argc, char **argv) {
   CostOut << mod.getModuleIdentifier() << "\t" << dCost << "\n";
   CostOut.close();
   fout.close();
+#endif
+
   // Declare success.
   Out->keep();
 
   return 0;
 }
 
-void printPCG(ostream &os)
+void printPCG(std::ostream &os)
 {
     os << "digraph G {\n";
     // node
@@ -396,5 +419,24 @@ void printPCG(ostream &os)
         os << "\n";
     }
     os << "}\n";
+}
 
+extern std::map<const Function *, std::map<int, double> > g_hF2Locks;
+void printLocks(std::ostream &os)
+{
+	std::map<const Function *, std::map<int, double> >::iterator f2i_p = g_hF2Locks.begin(), f2i_e = g_hF2Locks.end();
+	for(; f2i_p != f2i_e; ++ f2i_p)
+	{
+		const Function *func = f2i_p->first;
+		StringRef szRef = func->getName();
+		string szName = szRef.str();
+		os << "##" << szName << endl;
+		std::map<int, double>::const_iterator i2d_p = f2i_p->second.begin(), i2d_e = f2i_p->second.end();
+		for(; i2d_p != i2d_e; ++ i2d_p)
+		{
+			if( i2d_p->second > 9.999999)
+				os << i2d_p->first << "\t" << i2d_p->second << endl;
+		}
+		os << endl;
+	}
 }

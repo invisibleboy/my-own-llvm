@@ -41,9 +41,6 @@
 //#include "llvm/Analysis/StaticCfg.h"
 using namespace llvm;
 
-//extern const std::map<const Function *, std::map<const BasicBlock *, double> > &g_hF2B2Acc;
-//extern int GetAccess(const std::map<const Function *, std::map<const BasicBlock *, double> > &left );
-
 const std::map<const Function *, std::map<const BasicBlock *, double> > *g_hF2B2Acc;
 std::map<std::string, std::set<std::string> > g_hFuncCall;
 bool g_bRecursive = false;
@@ -69,6 +66,7 @@ static void printPCG(raw_ostream &os)
     os << "}\n";
 
 }
+// add by qali: output block frequency estimation
 void dumpFreq()
 {
 	std::map<const Function *, std::map<const BasicBlock *, double> >::const_iterator f2b2acc_p = g_hF2B2Acc->begin(), E = g_hF2B2Acc->end();
@@ -120,6 +118,7 @@ int GetAccess(const std::map<const Function *, std::map<const BasicBlock *, doub
 	return 0;
 }
 
+// by qali: obtain the function call graph
 int StaticProfilePass::GetFuncCall(Module *module, CallGraph *CG)
 {
 	if( g_bRecursive )
@@ -279,7 +278,7 @@ bool StaticProfilePass::runOnModule(Module &M) {
   // frequencies to achieve global block and edge frequency.
   CalculateGlobalInfo(M);
 
-	// by qali
+	// by qali: obtain block frequency estimation and function call graph
 	GetAccess(BlockInformation);
 	GetFuncCall(&M, CG);
 

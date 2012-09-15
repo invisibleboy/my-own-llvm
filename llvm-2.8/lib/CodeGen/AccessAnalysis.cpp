@@ -1,3 +1,6 @@
+// add by qali: MDL for hybrid cache 
+
+
 
 #define DEBUG_TYPE "ACCESS"
 
@@ -16,12 +19,16 @@
 #include "llvm/CodeGen/PseudoSourceValue.h"
 #include "llvm/Support/CommandLine.h"
 
+#ifndef HYBRID_ALLOCATION
+
 cl::opt<int> Alpha("alpha", cl::desc("The alpha value") );
 cl::opt<int> Beta("beta", cl::desc("The beta value") );
 
 extern std::map<std::string, std::set<std::string> > g_hFuncCall;
 extern const std::map<const Function *, std::map<const BasicBlock *, double> > *g_hF2B2Acc;
 extern std::map<const Function *, std::map<const BasicBlock *, std::map<const BasicBlock *, double> > > g_EdgeProbs;
+std::map<const Function *, std::map<int, double> > g_hF2Locks;
+std::map<const Function *, std::map<int, double> > hAccFreq; // for computing write frequency
 
 std::map<const Function *, std::set<AccessRecord *, RecordCmp> > AccessCount; 		// For access frequency
 std::map<Function *, map<int, int64_t> > StackLayout;		// For stack layout
@@ -45,6 +52,7 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 		std::map<int, std::map<int, AccessEdge *> > &AccEdge = hAccRecord[fn];
 		//std::map<int, AccessRecord *, RecordCmp> &fAccessCount = AccessCount[mf.getFunction()];
 		std::map<int, AccessRecord *> AccessSet;
+		std::map<int, double > &AccFreq = hAccFreq[fn];
 
         std::map<const MachineBasicBlock *, pair<int, bool> > hBasicFirst;
         std::map<const MachineBasicBlock *, pair<int, bool> > hBasicbLast;
@@ -67,7 +75,8 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 				DEBUG(MI->print(dbgs(), NULL ));
                 int FI = 0;
                 bool bRead = true;
-                for (unsigned i = 0, e = MI->getNumOperands(); i != e; ++ i)
+                int e = MI->getNumOperands();
+                for (int i = e-1; i >= 0; -- i)
                 {
                     const MachineOperand &MO = MI->getOperand(i);
 
@@ -78,6 +87,10 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
                         bRead = false;
                         if( i != 0 )
                             bRead = true;
+						if( !bRead )
+						{
+							AccFreq[FI] += dFactor;
+						}		
                         DEBUG(dbgs() << "#####" << bRead << "####" << dFactor << ":\t" << FI << "\n" );
                         if( bFirst )
                         {
@@ -90,20 +103,22 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
                         UpdateEdge(AccEdge, preObj, FI, preRead, bRead, dFactor);
                         preObj = FI;
                         preRead = bRead;
+						
+						hBasicbLast[BBI] = (pair<int, bool>(FI, bRead) );
                     }
                 }
-                if( MI == LastI )
-                    hBasicbLast[BBI] = (pair<int, bool>(FI, bRead) );
+                    
             }
         }
 
         // Get the weight across basic blocks
-
         std::map<const BasicBlock *, std::map<const BasicBlock *, double> > &Edges = g_EdgeProbs[fn];
         for (MachineFunction::const_iterator BBI = mf.begin(), FE = mf.end();
 			BBI != FE; ++BBI)
         {
-            const BasicBlock *bb = BBI->getBasicBlock();
+            const MachineBasicBlock *mbb = BBI;
+            const BasicBlock *bb = mbb->getBasicBlock();
+			
             if( bb == NULL || hBasicbLast.find(BBI) == hBasicbLast.end())
                 continue;
             std::set<const MachineBasicBlock *> succ;
@@ -117,23 +132,38 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
                 double probability = 1.0;
                 if( bb1 == NULL || hBasicFirst.find(mbb1) == hBasicFirst.end() )
                     continue;
-                if( bb1 == bb)
+                if( bb1 == bb && mbb1 != mbb )      // the same IR block, but different lower level block
                 {
-                    probability = 1.0/succ.size();
+					probability = GetFrequency(BBI, fn);
                 }
                 else
                 {
                     if( Edges[bb].find(bb1) != Edges[bb].end() )
                         probability = Edges[bb][bb1];
-                }
-                double dFactor = GetFrequency(BBI, fn);
+                }                
                 UpdateEdge(AccEdge, hBasicbLast[BBI].first, hBasicFirst[mbb1].first,
-                           hBasicbLast[BBI].second, hBasicFirst[mbb1].second, dFactor);
+                           hBasicbLast[BBI].second, hBasicFirst[mbb1].second, probability);
             }
 
         }
-
-
+		
+		// weighted by (TotalWrite1+TotalWrite2)
+		/*std::map<int, std::map<int, AccessEdge *> >::iterator i2i_p = AccEdge.begin(), i2i_e = AccEdge.end();
+		for(; i2i_p != i2i_e; ++ i2i_p)
+		{
+			int nFirst = i2i_p->first;
+			std::map<int, AccessEdge *> &parEdge = i2i_p->second;
+			std::map<int, AccessEdge *>::iterator i2a_p = parEdge.begin(), i2a_e = parEdge.end();
+			for(; i2a_p != i2a_e; ++ i2a_p)
+			{
+				int nSecond = i2a_p->first;
+				double wFactor = AccFreq[nFirst] + AccFreq[nSecond];
+				
+				AccessEdge *pEdge = i2a_p->second;
+				pEdge->dWeight = (pEdge->dWeight+1) * wFactor;				
+			}
+		}*/
+		
 		return true;
 	}
 
@@ -147,7 +177,6 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 		set<int> Objects;
 		DEBUG(errs() << "<<<<<<<Begin " << mf.getFunction()->getName() << ">>>>>>" );
 		DEBUG(errs() << min <<"---" << max << "\n");
-		int estStackSize = 0;
 		// search the stack objects needing allocation
 		 for (unsigned i = 0, e = MFI->getObjectIndexEnd(); i != e; ++i)
 		 {
@@ -164,7 +193,6 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 			// qali
 			if (LargeStackObjs.count(i))
 			  continue;
-            estStackSize += MFI->getObjectSize(i);
 			Objects.insert(i);
 		 }
 
@@ -496,6 +524,8 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 		 MachineFrameInfo *MFI = mf.getFrameInfo();
 
          Offset = 0;
+		 int nStart = 0;
+		 int nFinal = 0;
 		 std::list<CCacheBlock *>::iterator b_I = Block_list.begin(), b_E = Block_list.end();
 		 for(; b_I != b_E; ++ b_I)
 		 {
@@ -510,7 +540,7 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 				 continue;
 		     }
 
-			 int nFinal = (Offset + CACHE_LINE_SIZE-1) /CACHE_LINE_SIZE * CACHE_LINE_SIZE;
+			 nStart = (Offset + CACHE_LINE_SIZE-1) /CACHE_LINE_SIZE * CACHE_LINE_SIZE;
 			 std::map<int,int>::iterator i2i_I = pBlock->m_hOff2Obj.begin(), i2i_E = pBlock->m_hOff2Obj.end();
 			 for(; i2i_I != i2i_E; ++ i2i_I)
 			 {
@@ -518,7 +548,7 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 				{
 					int nOff = i2i_I->first;
 					int index = i2i_I->second;
-					nFinal += nOff+ MFI->getObjectSize(index);
+					nFinal = nStart + nOff+ MFI->getObjectSize(index);
 					MFI->setObjectOffset(index, -nFinal); // Set the computed offset
 					DEBUG(dbgs() << "qali alloc FI(" << i2i_I->second << ") at SP[" << -nFinal << "]\n");
 				}
@@ -526,7 +556,7 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 				{
 					int nOff = i2i_I->first;
 					int index = i2i_I->second;
-					nFinal += nOff;
+					nFinal = nStart + nOff;
 					MFI->setObjectOffset(index, nFinal);
 					DEBUG(dbgs() << "qali alloc FI(" << i2i_I->second << ") at SP[" << nFinal << "]\n");
 				}
@@ -557,9 +587,9 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
             pAccEdge->dWeight += dFreq * Alpha;   //10
         }
         else if( bFirst && !bSec )
-            pAccEdge->dWeight += dFreq * Beta;  // 2
+            pAccEdge->dWeight += dFreq * (Alpha-Beta);  // 2
         else if( !bFirst && bSec )
-            pAccEdge->dWeight += dFreq * Beta;  // 2
+            pAccEdge->dWeight += dFreq * (Alpha-Beta);  // 2
         else
             pAccEdge->dWeight += dFreq * Alpha;  // 200
         return 0;
@@ -599,3 +629,112 @@ std::map<const Function *, std::map<int, std::map<int, double> > > hWeightGraph;
 		}
 		return 0;
 	}
+	
+	bool CacheLock(llvm::MachineFunction &mf)
+	{
+		const llvm::Function *fn = mf.getFunction();
+		MachineFrameInfo *MFI = mf.getFrameInfo();
+		
+		DEBUG(dbgs() << "##### begin cache locking " << fn->getName() << "####\n" );
+		
+		map<int, double> &locks = g_hF2Locks[fn];		
+		
+		//std::map<int, AccessRecord *, RecordCmp> &fAccessCount = AccessCount[mf.getFunction()];
+
+        std::map<int, std::map<const MachineBasicBlock *, bool> > hBasicFirst, hBasicLast, hPreOp;
+		for (MachineFunction::const_iterator BBI = mf.begin(), FE = mf.end();
+			BBI != FE; ++BBI)
+		{
+			// Get access frequence for block
+
+			double dFactor = GetFrequency(BBI, fn);
+			
+			// Get access frequncy for each operand
+			MachineBasicBlock::const_iterator MI = BBI->begin(), BBE = BBI->end(), LastI = BBI->end();
+			if( LastI != MI)
+                -- LastI;
+			for (; MI != BBE; ++MI)
+			{
+				DEBUG(MI->print(dbgs(), NULL ));
+                int FI = 0;
+                bool bRead = true;
+				int e = MI->getNumOperands();
+                for (int i = e-1; i >= 0; -- i)
+                {
+                    const MachineOperand &MO = MI->getOperand(i);
+
+                    if ( MO.isFI() )
+                    {
+                        FI = MO.getIndex();
+						int blockID = -MFI->getObjectOffset(FI)/CACHE_LINE_SIZE;
+                        bRead = false;
+                        if( i != 0 )
+                            bRead = true;
+                        
+						// the first access to blockID
+                        if( hPreOp[blockID].find(BBI) == hPreOp[blockID].end() )
+						{
+                            hBasicFirst[blockID][BBI] = bRead;                            
+                            hPreOp[blockID][BBI] = bRead;
+                            continue;
+                        }						
+						else if( hPreOp[blockID][BBI] != bRead)
+						{							
+							locks[blockID] += dFactor;
+							hPreOp[blockID][BBI] = bRead;
+						}
+						hBasicLast[blockID][BBI] = bRead;
+                    }
+                }
+                    
+            }
+        }
+
+        // Get the weight across basic blocks
+        std::map<const BasicBlock *, std::map<const BasicBlock *, double> > &Edges = g_EdgeProbs[fn];
+		std::map<int, std::map<const MachineBasicBlock *, bool> >::iterator i2b_p = hBasicLast.begin(), i2b_e = hBasicLast.end();
+		for(; i2b_p != i2b_e; ++ i2b_p)
+		{
+			int blockID = i2b_p->first;
+			std::map<const MachineBasicBlock *, bool>::iterator b2b_p = i2b_p->second.begin(), b2b_e = i2b_p->second.end();
+			for (; b2b_p != b2b_e; ++ b2b_p)
+			{				
+				const MachineBasicBlock *mbb = b2b_p->first;
+				const BasicBlock *bb = mbb->getBasicBlock();
+				if( bb == NULL )
+					continue;
+				
+				// suceeding blocks and firsts blocks
+				std::set<const MachineBasicBlock *> succ;
+				succ.insert(mbb->succ_begin(), mbb->succ_end());				
+				// 
+				std::map<const MachineBasicBlock *, bool> &firsts = hBasicFirst[blockID];
+				
+				std::set<const MachineBasicBlock *>::iterator s_i = succ.begin(), s_e = succ.end();
+				for(; s_i != s_e; ++ s_i)
+				{
+					const MachineBasicBlock *mbb1 = *s_i;
+					const BasicBlock *bb1 = mbb1->getBasicBlock();
+					double probability = 1.0;
+					if( bb1 == NULL || firsts.find(mbb1) == firsts.end() )
+						continue;
+					if( bb1 == bb && mbb1 != mbb)      // the same IR block, but different lower level block
+					{
+						probability = GetFrequency(mbb, fn);
+					}
+					else 
+					{
+						if( Edges[bb].find(bb1) != Edges[bb].end() )
+							probability = Edges[bb][bb1];
+					}           			 
+					
+					bool bFirst = b2b_p->second; 
+					bool bSec = firsts[mbb1];	
+					if( bFirst != bSec)
+						locks[blockID] += probability;	
+				}
+			}
+		}
+		return true;
+	}
+#endif

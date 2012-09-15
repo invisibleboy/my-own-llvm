@@ -18,6 +18,7 @@ using namespace llvm;
 #define	CASCH_CAPACITY	(2 << 20)
 #define NOF (-(2<<31))
 
+
 namespace llvm
 {
 	class RegScavenger;

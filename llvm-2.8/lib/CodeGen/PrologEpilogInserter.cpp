@@ -97,7 +97,9 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
   TRI->processFunctionBeforeFrameFinalized(Fn);
 
 	// qali --------------------
+#ifdef DATA_LAYOUT
 	AccessAnalysis(Fn);
+#endif
 	// qali -----------------------
 
   // Calculate actual frame offsets for all abstract stack objects...
@@ -111,6 +113,11 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
   if (!F->hasFnAttr(Attribute::Naked))
     insertPrologEpilogCode(Fn);
 
+		// cache locking
+#ifdef CACHE_LOCK
+	CacheLock(Fn);
+#endif
+
   // Replace all MO_FrameIndex operands with physical register references
   // and actual offsets.
   //
@@ -118,6 +125,7 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
 
     ////////by qali for stack size of function////////
     g_hStackSize[F->getName()] = Fn.getFrameInfo()->getStackSize();
+	
   // If register scavenging is needed, as we've enabled doing it as a
   // post-pass, scavenge the virtual registers that frame index elimiation
   // inserted.
@@ -618,13 +626,15 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &Fn) {
     }
   }
 
+
+#ifdef DATA_LAYOUT
   // Then assign frame offsets to stack objects that are not used to spill
   // callee saved registers.
   // qali --------------
    PackStack(Fn, Offset,RS, MinCSFrameIndex, MaxCSFrameIndex, LargeStackObjs);
   // qali --------------------
-
-  /*for (unsigned i = 0, e = MFI->getObjectIndexEnd(); i != e; ++i) {
+#else
+   for (unsigned i = 0, e = MFI->getObjectIndexEnd(); i != e; ++i) {
     if (MFI->isObjectPreAllocated(i) &&
         MFI->getUseLocalStackAllocationBlock())
       continue;
@@ -640,7 +650,8 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &Fn) {
       continue;
 
     AdjustStackOffset(MFI, i, StackGrowsDown, Offset, MaxAlign);
-  }*/
+  }
+#endif
 
   // Make sure the special register scavenging spill slot is closest to the
   // stack pointer.
@@ -672,7 +683,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &Fn) {
     // If the frame pointer is eliminated, all frame offsets will be relative to
     // SP not FP. Align to MaxAlign so this works.
     StackAlign = std::max(StackAlign, MaxAlign);
-    // add by qali
+    // add by qali: adjust stack size to be a multiple of CACHE_LINE_SIZE
     StackAlign = std::max(StackAlign, (unsigned)CACHE_LINE_SIZE);
     unsigned AlignMask = StackAlign - 1;
     Offset = (Offset + AlignMask) & ~uint64_t(AlignMask);

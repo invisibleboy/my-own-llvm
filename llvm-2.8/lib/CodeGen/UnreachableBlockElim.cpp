@@ -46,6 +46,7 @@ namespace {
     static char ID; // Pass identification, replacement for typeid
     UnreachableBlockElim() : FunctionPass(ID) {}
 
+	// qali: add static proflile pass
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addPreserved<ProfileInfo>();
 	  AU.addRequired<StaticProfilePass>();
