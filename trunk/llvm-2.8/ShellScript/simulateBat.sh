@@ -1,10 +1,10 @@
 #TOOL=/home/qali/ShellScript/llvm-compile.sh
-TOOL=/home/qali/ShellScript/simulate.sh
+#TOOL=/home/qali/ShellScript/run.sh
 #TOOL=/home/qali/ShellScript/hybridCacheLock.sh
-
+TOOL=/home/qali/ShellScript/simulate.sh
 #llvm-compileBat.sh -5 5
 
-if [ $# -lt 2 ]; then
+if [ $# -lt 0 ]; then
 	echo "lack of argument"
 	exit
 fi

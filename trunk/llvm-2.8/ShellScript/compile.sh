@@ -1,8 +1,9 @@
 
-
+TEST=SMALL_PROBLEM_SIZE
 CPPCLAGS=
 RUN_OPTIONS=
-CC=gcc
+CC=clang
+STATIC=
 
 
 	if [ $# -lt 1 ]; then
@@ -36,11 +37,23 @@ CC=gcc
 		RUN_OPTIONS="medium_inputs 900"
 	elif [[ $DIR == "network-patricia" ]]; then
 		RUN_OPTIONS=large.udp
+	elif [[ $DIR == "Fhourstones" ]]; then
+		CPPFLAGS="-DUNIX -DTRANSIZE=1050011 -DPROBES=8 -DREPORTPLY=8"
+		RUN_OPTIONS=ref.in
+	elif [[ $DIR == "g721" ]]; then
+		RUN_OPTIONS="-4 -l <clinton.pcm"
+	elif [[ $DIR == "five11" ]]; then
+		RUN_OPTIONS=input-file
+	elif [[ $DIR == "fourinarow" ]]; then
+		CPPFLAGS="-DVERSION='"1.00"' -DCOMPDATE="\"today\"" -DCFLAGS="\"\"" -DHOSTNAME="\"thishost\"""
+		RUN_OPTIONS=test.in
+	elif [[ $DIR == "mpeg2" ]]; then
+		RUN_OPTIONS="-r -f -o0 rec%d  -b data/mei16v2.m2v"
 	#elif [[ $DIR == "flops" -o $DIR == "mandel" -o $DIR == "perlin" ]]; then
 	fi
 
-	echo "$CC -O3 -g $CPPFLAGS *.c -static -lm -o main.ori"
-	$CC -O3 -g $CPPFLAGS *.c -static -lm -o main.ori
+	echo "$CC -D$TEST -O3 -g $CPPFLAGS *.c -$STATIC -lm -o main.ori"
+	$CC -D$TEST -O3 -g $CPPFLAGS *.c -$STATIC -lm -o main.ori
 	
 	if [ $? -ne 0 ]; then
 		exit 

@@ -1,4 +1,4 @@
-COMPILE_TOOL=/home/qali/Tool/compile.sh
+COMPILE_TOOL=/home/qali/ShellScript/compile.sh
 
 for DIR in *; do 
 	if [ "$DIR" == "." -o "$DIR" == ".." ]; then
