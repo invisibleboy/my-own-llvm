@@ -1,11 +1,21 @@
-PIN_PATH=/home/qali/Ins/pin-2.10-45467-gcc.3.4.6-ia32_intel64-linux/
+PIN_PATH=/home/qali/Ins/pin-2.12-54730-gcc.4.4.7-linux/
 PIN=$PIN_PATH"pin"
 #PIN_TOOL=$PIN_PATH"source/tools/SimpleExamples/obj-ia32/cacheWithBuffer.so"
-PIN_TOOL=$PIN_PATH"source/tools/SimpleExamples/obj-ia32/hybridCache.so"
-APP=$1"-"$2$3
-OUTPUT=$APP".hybrid"
+#PIN_TOOL=$PIN_PATH"source/tools/SimpleExamples/obj-ia32/hybridCache.so"
+#APP=$1"-"$2$3
+#OUTPUT=$APP".hybrid"
 
-	if [ $# -lt 3 ]; then
+APP=$1
+PIN_TOOL=$PIN_PATH"source/tools/SimpleExamples/obj-intel64/qaliTrace.so"
+OUTPUT=$APP.trace
+
+#PIN_TOOL=$PIN_PATH"source/tools/SimpleExamples/obj-intel64/SymbolTrace.so"
+#OUTPUT=$APP.baseStat
+
+#PIN_TOOL=$PIN_PATH"source/tools/SimpleExamples/obj-intel64/SymbolTraceOpti.so"
+#OUTPUT=$APP.optiStat
+
+	if [ $# -lt 1 ]; then
 		echo "lack of argument"
 		exit
 	fi
@@ -14,8 +24,17 @@ OUTPUT=$APP".hybrid"
 	cd $DIR
 	echo "====Into: $(pwd)"	
 	
-	echo "$PIN -t $PIN_TOOL -b 32 -o $OUTPUT -- ./$APP >log"
-	$PIN -t $PIN_TOOL -b 32 -o $OUTPUT -- ./$APP >log	
+	##echo "$PIN -t $PIN_TOOL -b 32 -o $OUTPUT -- ./$APP >log"
+	#$PIN -t $PIN_TOOL -b 32 -o $OUTPUT -- ./$APP >log	
+	
+	echo "$PIN -t $PIN_TOOL -o $OUTPUT -- ./$APP >log"
+	$PIN -t $PIN_TOOL -o $OUTPUT -- ./$APP >log	
+
+	#echo "$PIN -t $PIN_TOOL -it $APP.trace -og $APP.graph $OUTPUT -- ./$APP >log"
+	#$PIN -t $PIN_TOOL -it $APP.trace -og $APP.graph -o $OUTPUT -- ./$APP >log
+
+	#echo "$PIN -t $PIN_TOOL -it $APP.trace -og $APP.graph -o $OUTPUT -- ./$APP >log"
+	#$PIN -t $PIN_TOOL -it $APP.trace -og $APP.graph -o $OUTPUT -- ./$APP >log
 	
 	
 	cd ..
