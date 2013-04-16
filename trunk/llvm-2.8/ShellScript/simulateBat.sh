@@ -1,7 +1,7 @@
 #TOOL=/home/qali/ShellScript/llvm-compile.sh
 #TOOL=/home/qali/ShellScript/run.sh
 #TOOL=/home/qali/ShellScript/hybridCacheLock.sh
-TOOL=/home/qali/ShellScript/simulate.sh
+TOOL=/home/qali/ShellScript/volatileSttram2.sh
 #llvm-compileBat.sh -5 5
 
 if [ $# -lt 0 ]; then
@@ -18,8 +18,8 @@ for DIR in *; do
 	#cd $DIR
 	echo "Deal with: $DIR"
 
-	echo "${TOOL} $DIR $1 $2 $3"
-	${TOOL} $DIR $1	$2 $3
+	echo "${TOOL} $DIR $1 $2 $3 $4 $5"
+	${TOOL} $DIR $1	$2 $3 $4 $5
 	
 	if [ $? -ne 0 ]; then
 		echo "Error:"
