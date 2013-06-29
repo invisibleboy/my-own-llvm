@@ -65,7 +65,9 @@ int WriteSolFile(string szFile)
 {
     // write .sol file
 	
-    std::string fileName = szFile + ".sol";
+	int index = szFile.find('_');
+	index = szFile.find('_', index+1);
+    std::string fileName = szFile.substr(0,index) + ".sol";
     ofstream outf;
     outf.open(fileName.c_str());
     if( !outf.good() )

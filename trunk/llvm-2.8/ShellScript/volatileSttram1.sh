@@ -17,7 +17,7 @@ PIN_TOOL=$PIN_PATH"source/tools/SimpleExamples/obj-intel64/volTrace2ilp.so"
 PIN_TOOL_OPT=$PIN_PATH"source/tools/SimpleExamples/obj-intel64/SymbolTraceOpti.so"
 ALLOC=/home/qali/ShellScript/allocate
 
-SWITCH=ilp
+SWITCH=ilp1
 
 SCHEME=$2
 BLOCK_SIZE=$3
@@ -67,15 +67,15 @@ OUTPUT_OPT_ILP=$APP"_"$SCHEME"_"$BLOCK_SIZE"_"$CACHE_SIZE.statOptIlp
 	#$PIN -t $PIN_TOOL -hw $SCHEME -it $ITRACE -og $OGRAPH -o $OUTPUT -- ./$APP >log	
 
 	# from trace to graph as well as base result
-	#symbolTrace
+	#volTrace2Ilp
 	echo "$PIN -t $PIN_TOOL -hw $SCHEME -it $ITRACE -b $BLOCK_SIZE -c $CACHE_SIZE $OPT_RETENTION $OPT_WRITE_LAT $OPT_HEAD -ot $OTRACE -og $OGRAPH -o $OUTPUT -- ./$APP >log"
 	$PIN -t $PIN_TOOL -hw $SCHEME -it $ITRACE -b $BLOCK_SIZE -c $CACHE_SIZE $OPT_RETENTION $OPT_WRITE_LAT $OPT_HEAD -ot $OTRACE -og $OGRAPH -o $OUTPUT -- ./$APP >log
 
 	
 	if [ $SWITCH = "ilp" ]; then		
 		#from graph to allocation.result
-		//echo "$ALLOC 1 $OTRACE"_funcs" >> log"
-		//$ALLOC 1 $OTRACE"_funcs" >> log
+		#echo "$ALLOC 1 $OTRACE"_funcs" >> log"
+		#$ALLOC 1 $OTRACE"_funcs" >> log
 
 		#from allocation.result to optiStat
 		echo "$PIN -t $PIN_TOOL_OPT -hw $SCHEME -it $ITRACE -id $DATAMAP -b $BLOCK_SIZE -c $CACHE_SIZE $OPT_RETENTION $OPT_WRITE_LAT -o $OUTPUT_OPT_ILP  -- ./$APP >>log"
