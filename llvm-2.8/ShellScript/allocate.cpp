@@ -10,6 +10,7 @@
 using namespace std;
 
 #define NPOS -1
+//#define DUMP
 
 UINT32 g_blockSize = 32;
 UINT32 g_capacity;
@@ -25,35 +26,46 @@ std::string g_szOutFile;
 
 int main(int argc, char *argv[])
 {
-	if( argc < 4)
+	if( argc < 3)
 	{
 		cerr << "lack of args" << endl;
 		return -1;
 	}
+
+	string szBlockSize = argv[2];
+	int index = szBlockSize.find('_');
+	szBlockSize = szBlockSize.substr(index+1);
+	index = szBlockSize.find('_');
+	szBlockSize = szBlockSize.substr(index+1);
+	index = szBlockSize.find('_');
+	szBlockSize = szBlockSize.substr(0,index);
+
+	string szFileName = argv[2];
+	index = szFileName.find('.');
+	szFileName = szFileName.substr(0,index);
 	
-	g_szOutFile = "alloc_";
-	g_szOutFile = g_szOutFile + argv[1] + "_" + argv[2] + "_" + argv[3];
+	g_szOutFile = szFileName + ".alloc";
 	
 	
 	
-	stringstream ss(argv[2]);
+	stringstream ss(szBlockSize);
 	ss >> g_blockSize;
 	g_capacity = g_blockSize/4;
 	
 	
 	CAllocate alloc;
 	//cerr << argv[4] << "..." << endl;
-	if( string(argv[4]) == "1")
+	if( string(argv[1]) == "1")
 	{
 		alloc.SetILP(true);
-		g_szOutFile = g_szOutFile + "_ilp.txt";
+		//g_szOutFile = g_szOutFile + "_ilp";
 	}
 	else
 	{
 		alloc.SetILP(false);
-		g_szOutFile = g_szOutFile + ".txt";
+		//g_szOutFile = g_szOutFile + "";
 	}
-	alloc.Run(argv[5]);
+	alloc.Run(argv[2]);
 	return 0;
 }
 
@@ -75,6 +87,7 @@ int CAllocate::Run(string szInput)
 	outf.open(g_szOutFile.c_str());
 	Dump(outf);
 	outf.close();
+	cerr << "Generating " << g_szOutFile << endl;
 	return 0;
 }
 
@@ -333,7 +346,9 @@ int CAllocate::DoAllocate1()
 			if( bNFound)   				
 				break;
 			 
-
+#ifdef DUMP
+			cerr << "trying allocating (" << nPrev << "," << nNext << ") with " << fGraph[nPrev][nNext] << endl;
+#endif
             CBlock* pBlock = NULL;
             if( headVertice.find(nPrev) != headVertice.end() )    // nPrev is the head vertex
             {
@@ -346,6 +361,9 @@ int CAllocate::DoAllocate1()
 					hBlocks[nNext] = pBlock;
 					allocated.insert(nNext);
 					UpdateGraph(fGraph, Atable, pBlock, nNext);
+#ifdef DUMP
+					cerr << "===finishing allocating (" << nPrev << "," << nNext << ") with " << fGraph[nPrev][nNext] << endl;
+#endif
 				}				 
             }
             else if( headVertice.find(nNext) != headVertice.end() )   // nNext is the head vertex
@@ -359,6 +377,9 @@ int CAllocate::DoAllocate1()
 					hBlocks[nPrev] = pBlock;
 					allocated.insert(nPrev);
 					UpdateGraph(fGraph, Atable, pBlock, nPrev);
+#ifdef DUMP
+					cerr << "===finishing allocating (" << nPrev << "," << nNext << ") with " << fGraph[nPrev][nNext] << endl; 
+#endif
 				}               
             }
             else
@@ -390,6 +411,9 @@ int CAllocate::DoAllocate1()
 						hBlocks[nNext] = pBlock;
 						allocated.insert(nNext);
 						UpdateGraph(fGraph, Atable, pBlock, nNext);
+#ifdef DUMP
+					cerr << "===finishing allocating (" << nPrev << "," << nNext << ") with " << fGraph[nPrev][nNext] << endl; 
+#endif
 						break;
 					}
 				}	
@@ -430,13 +454,21 @@ bool CAllocate::FindBest(const set<ADDRINT> &allocated, ADDRINT &obj, map<ADDRIN
 int CAllocate::AddAllocate(set<ADDRINT> &allocated, CBlock *pBlock, ADDRINT obj, map<ADDRINT, map<ADDRINT, ADDRINT> > &fGraph, map<ADDRINT, set<ADDRINT> > &Atable)
 {
 	if( pBlock->_size == g_capacity)    // if this block is full now
+	{		
+#ifdef DUMP
+	cerr << "===============" << endl;
+#endif
 		return 0;
+	}
 	ADDRINT obj2;
 	bool bFound = FindBest(allocated, obj2, fGraph[obj], Atable[obj]);
 	if( !bFound )   // allocation ends
 		return 1;
 	pBlock->Add(obj2);
 	allocated.insert(obj2);
+#ifdef DUMP
+	cerr << "add " << obj << " by " <<  obj2 << " with " << fGraph[obj][obj2] << endl;
+#endif
 	UpdateGraph(fGraph, Atable, pBlock, obj2);	
 	return AddAllocate(allocated, pBlock, obj, fGraph, Atable);		
 }
@@ -447,7 +479,7 @@ int CAllocate::DoAllocate()
 	for(; i_p != i_e; ++ i_p )
 	{
 		int nFunc = i_p->first;
-		cerr << endl << "For ###" << nFunc;
+		cerr << endl << "For ###" << nFunc << endl;
 		int L = g_blockSize/4;
 		int nBlocks = (m_graph[nFunc].size() + L - 1)/L;
 		map<ADDRINT, map<ADDRINT, ADDRINT> > &fGraph = m_graph[nFunc];
@@ -481,8 +513,13 @@ int CAllocate::DoAllocate()
 			
 			pBlock->Add(obj1);
 			allocated.insert(obj1);
-			pBlock->_rep = obj1;			
+			pBlock->_rep = obj1;	
+#ifdef DUMP
+			cerr << "add " << obj1 << endl;
+#endif
 			int bOver = AddAllocate(allocated, pBlock, obj1, fGraph, Atable);	
+			
+
 			if( bOver)
 				break;
 			
