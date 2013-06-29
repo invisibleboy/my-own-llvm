@@ -1,7 +1,7 @@
 #TOOL=/home/qali/ShellScript/llvm-compile.sh
 #TOOL=/home/qali/ShellScript/run.sh
 #TOOL=/home/qali/ShellScript/hybridCacheLock.sh
-TOOL=/home/qali/ShellScript/volatileSttram2.sh
+TOOL=/home/qali/ShellScript/volatileSttram1.sh
 #llvm-compileBat.sh -5 5
 
 if [ $# -lt 0 ]; then
@@ -10,7 +10,7 @@ if [ $# -lt 0 ]; then
 fi
 
 for DIR in *; do 
-	if [ "$DIR" == "." -o "$DIR" == ".." ]; then
+	if [ "$DIR" == "." -o "$DIR" == ".." -o ! -d $DIR ]; then
 		echo $DIR
 		continue
 	fi

@@ -24,7 +24,7 @@ OPT_HEAD="-head $HEAD"
 
 #--volTrace2ilp
 ITRACE=$APP.trace
-OUTPUT=$APP"_"$BLOCK_SIZE"_"$CACHE_SIZE"_"$WRITE_LAT.lifetime
+OUTPUT=$APP"_"$BLOCK_SIZE"_"$CACHE_SIZE"_"$WRITE_LAT.lifetime2
 
 
 
@@ -38,8 +38,8 @@ OUTPUT=$APP"_"$BLOCK_SIZE"_"$CACHE_SIZE"_"$WRITE_LAT.lifetime
 	echo "====Into: $(pwd)"	
 	
 	#
-	echo "$PIN -t $PIN_TOOL -it $ITRACE -b $BLOCK_SIZE -c $CACHE_SIZE $OPT_WRITE_LAT $OPT_HEAD -o $OUTPUT -- ./$APP >log"
-	$PIN -t $PIN_TOOL -it $ITRACE -b $BLOCK_SIZE -c $CACHE_SIZE $OPT_WRITE_LAT $OPT_HEAD -o $OUTPUT -- ./$APP >log	
+	echo "$PIN -t $PIN_TOOL -it $ITRACE -b $BLOCK_SIZE -c $CACHE_SIZE -r $RETENTION $OPT_WRITE_LAT $OPT_HEAD -o $OUTPUT -- ./$APP >log"
+	$PIN -t $PIN_TOOL -it $ITRACE -b $BLOCK_SIZE -c $CACHE_SIZE -r $RETENTION $OPT_WRITE_LAT $OPT_HEAD -o $OUTPUT -- ./$APP >log	
 	
 	cd ..
 	echo "====Back to: $(pwd)"
